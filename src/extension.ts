@@ -4,6 +4,7 @@ import { Bridge } from "./bridge/connection.ts";
 import { BridgeStatus } from "./bridge/status.ts";
 import { RantCompletion } from "./language/completion.ts";
 import { RantDiagnostics } from "./language/diagnostics.ts";
+import { LANGUAGE_IDS } from "./language/vocabulary.ts";
 import { onCommandDone } from "./terminal.ts";
 import { registerMeshCommands } from "./views/mesh/commands.ts";
 import { EntityPanel } from "./views/mesh/panel.ts";
@@ -25,7 +26,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
 
   const checkDocument = (doc: vscode.TextDocument) => {
-    const root = doc.languageId === "rant" ? registry.rootOf(doc.fileName) : undefined;
+    const root = LANGUAGE_IDS.includes(doc.languageId) ? registry.rootOf(doc.fileName) : undefined;
     if (root) diagnostics.schedule(root);
   };
 
@@ -40,7 +41,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     new BridgeStatus(bridge),
     ...registerMeshCommands(bridge, mesh, context.extensionUri),
     bridge,
-    vscode.languages.registerCompletionItemProvider({ language: "rant" }, new RantCompletion(), ".", "="),
+    vscode.languages.registerCompletionItemProvider(LANGUAGE_IDS.map((language) => ({ language })), new RantCompletion(), ".", "="),
     registry.onDidChangeRoots((roots) => {
       void view.reload();
       roots.forEach((r) => diagnostics.schedule(r));

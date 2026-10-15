@@ -1,0 +1,6 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Rant Group",
+  "scopeName": "source.rant.group",
+  "patterns": [{ "include": "source.rant" }]
+}

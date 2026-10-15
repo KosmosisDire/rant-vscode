@@ -108,6 +108,9 @@ export const PATH_NAMES: Entry[] = [
   { name: "path.workspace", doc: "The workspace folder." },
 ];
 
+/** The editor languages of the config files: rant for *.rant, rant-group for *.run, so each has its own icon. */
+export const LANGUAGE_IDS = ["rant", "rant-group"];
+
 /** Which kind of file a name is, from workspace.rant, package.rant and *.run. */
 export function fileKindOf(fileName: string): FileKind | undefined {
   const base = fileName.split(/[\\/]/).pop() ?? fileName;

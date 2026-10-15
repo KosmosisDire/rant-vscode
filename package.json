@@ -30,13 +30,26 @@
         "filenamePatterns": [
           "workspace.rant",
           "package.rant",
-          "*.rant",
+          "*.rant"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./media/icons/config-light.svg",
+          "dark": "./media/icons/config-dark.svg"
+        }
+      },
+      {
+        "id": "rant-group",
+        "aliases": [
+          "Rant Group"
+        ],
+        "filenamePatterns": [
           "*.run"
         ],
         "configuration": "./language-configuration.json",
         "icon": {
-          "light": "./media/icons/file-light.svg",
-          "dark": "./media/icons/file-dark.svg"
+          "light": "./media/icons/run-light.svg",
+          "dark": "./media/icons/run-dark.svg"
         }
       }
     ],
@@ -45,6 +58,11 @@
         "language": "rant",
         "scopeName": "source.rant",
         "path": "./syntaxes/rant.tmLanguage.json"
+      },
+      {
+        "language": "rant-group",
+        "scopeName": "source.rant.group",
+        "path": "./syntaxes/rant-group.tmLanguage.json"
       }
     ],
     "viewsContainers": {
