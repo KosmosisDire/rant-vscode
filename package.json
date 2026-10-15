@@ -388,7 +388,7 @@
   "scripts": {
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
-    "check": "tsc --noEmit",
+    "check": "tsc --noEmit && tsc --noEmit -p src/page",
     "test": "node --experimental-strip-types --no-warnings --test-reporter=spec --test \"test/**/*.test.ts\"",
     "package": "npm run check && npm run build && vsce package --no-dependencies --allow-missing-repository --skip-license"
   },
@@ -400,7 +400,7 @@
     "typescript": "^5.9.0"
   },
   "dependencies": {
-    "rant-client": "https://github.com/KosmosisDire/rant-bridge/releases/download/v0.0.1/rant-client-0.0.1.tgz",
+    "rant-client": "file:../bridge-rant/client",
     "yaml": "^2.9.1"
   }
 }

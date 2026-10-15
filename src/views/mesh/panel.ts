@@ -4,17 +4,18 @@ import * as vscode from "vscode";
 import type { MeshEntity, Publisher, RantNode, RemoteFunction, RemoteTask, RemoteVariable, Subscriber, TaskCall } from "rant-client";
 
 import type { Bridge } from "../../bridge/connection.ts";
-import { show, template } from "./format.ts";
+import { pack, unpack } from "./pack.ts";
+import { hasMedia } from "./table.ts";
 
 const FLUSH_MS = 100;
 
-/** What the page sends back. text is the JSON the user typed. */
+/** What the page sends back. value is packed. */
 type FromPage =
   | { type: "ready" }
-  | { type: "publish"; text: string }
-  | { type: "set"; text: string; force: boolean }
+  | { type: "publish"; value: unknown }
+  | { type: "set"; value: unknown; force: boolean }
   | { type: "unforce" }
-  | { type: "call"; text: string }
+  | { type: "call"; value: unknown }
   | { type: "cancel" };
 
 interface Handles {
@@ -44,26 +45,39 @@ export class EntityPanel implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   private node: RantNode | undefined;
   private h: Handles = {};
-  private latest: { text: string; info: string } | undefined;
+  private latest: unknown;
+  private fresh = false;
   private lastStatus = "";
-  private received = 0;
-  private flushed = Date.now();
+  /** What the head shows, as `rant sub` does: who sends, how fast, how many. */
+  private seen = 0;
+  private times: number[] = [];
+  private from = "";
+  private lastAt = 0;
+  private statsAt = 0;
+  private readonly names = new Map<number, string>();
+  private namesAt = 0;
   private readonly timer: NodeJS.Timeout;
   private readonly bridge: Bridge;
   private readonly entity: MeshEntity;
   private readonly key: string;
+  /** A value with a picture in it goes to the page whole, every one: a video frame needs the ones before it. */
+  private readonly video: boolean;
 
   private constructor(bridge: Bridge, entity: MeshEntity, extension: vscode.Uri, key: string) {
     this.bridge = bridge;
     this.entity = entity;
     this.key = key;
+    this.video = (entity.kind === "topic" || entity.kind === "variable") && hasMedia(entity.schema);
     const media = vscode.Uri.joinPath(extension, "media");
+    const dist = vscode.Uri.joinPath(extension, "dist");
     this.panel = vscode.window.createWebviewPanel("rant.entity", entity.name, vscode.ViewColumn.Active, {
       enableScripts: true,
       retainContextWhenHidden: true,
-      localResourceRoots: [media],
+      localResourceRoots: [media, dist],
     });
-    this.panel.webview.html = this.html(media);
+    const icons = vscode.Uri.joinPath(media, "icons");
+    this.panel.iconPath = { light: vscode.Uri.joinPath(icons, `${entity.kind}-light.svg`), dark: vscode.Uri.joinPath(icons, `${entity.kind}-dark.svg`) };
+    this.panel.webview.html = this.html(media, dist);
     this.disposables.push(
       bridge.want(),
       bridge.onDidChange(() => void this.attach()),
@@ -98,49 +112,72 @@ export class EntityPanel implements vscode.Disposable {
     const value = e.schema?.dsl ?? null;
     try {
       if (e.kind === "topic") {
-        this.h.sub = await node.subscriber(e.name, value, (v, m) => this.value(v, `from node ${m.publisher}`), { maxRateHz: 30 });
+        // best effort never stalls the publisher, and video keeps every frame, so only other values are capped
+        this.h.sub = await node.subscriber(e.name, value, (v, m) => this.value(v, m.publisher), this.video ? {} : { maxRateHz: 30 });
       } else if (e.kind === "variable") {
         const v = await node.remoteVariable(e.name, value);
-        v.onChange((x, info) => this.value(x, `${info.forced ? "forced, " : ""}${info.source ? `written by node ${info.source}` : "from the owner"}`));
+        v.onChange((x, info) => this.value(x, info.source));
         this.h.variable = v;
       } else if (e.kind === "function") {
         this.h.fn = await node.remoteFunction(e.name, value, e.rsp?.dsl ?? null);
       } else {
         this.h.task = await node.remoteTask(e.name, value, e.prg?.dsl ?? null, e.rsp?.dsl ?? null);
       }
-      this.status(e.kind === "topic" || e.kind === "variable" ? "waiting for a value" : "ready");
+      this.status(e.kind === "topic" || e.kind === "variable" ? "waiting for a value" : "");
     } catch (err) {
       this.status(`cannot open ${e.kind} ${e.name}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
-  private value(v: unknown, info: string): void {
-    this.received++;
-    this.latest = { text: show(v), info };
-  }
-
-  // values can arrive far faster than a page can draw them, so it gets the newest ten times a second
-  private flush(): void {
-    if (!this.latest) return;
+  private value(v: unknown, source: number): void {
     const now = Date.now();
-    const rate = (this.received * 1000) / Math.max(1, now - this.flushed);
-    this.post({ type: "value", text: this.latest.text, info: `${this.latest.info}, ${rate.toFixed(rate < 10 ? 1 : 0)} per second` });
-    this.latest = undefined;
-    this.received = 0;
-    this.flushed = now;
+    this.seen++;
+    this.times.push(now);
+    this.lastAt = now;
+    this.from = this.nameOf(source);
+    if (this.lastStatus) this.status("");
+    if (this.video) this.post({ type: "value", value: pack(v) });
+    else {
+      this.latest = v;
+      this.fresh = true;
+    }
   }
 
-  private parse(text: string): { ok: true; value: unknown } | { ok: false } {
-    try {
-      return { ok: true, value: JSON.parse(text) };
-    } catch (e) {
-      this.status(`not valid JSON: ${e instanceof Error ? e.message : String(e)}`);
-      return { ok: false };
+  /** A node's name from its peer id, 0 being the owner of a variable. Unknown ids read the peers again. */
+  private nameOf(id: number): string {
+    const known = this.names.get(id);
+    if (known) return known;
+    if (id === 0 && this.entity.from) return this.entity.from;
+    const now = Date.now();
+    if (this.node && now - this.namesAt > 1000) {
+      this.namesAt = now;
+      void this.node.reflection.peers().then((peers) => peers.forEach((p) => this.names.set(p.id, p.name)), () => {});
     }
+    return id ? `node ${id}` : "the owner";
+  }
+
+  // other values come faster than a page can draw them, so it gets the newest ten times a second
+  private flush(): void {
+    const now = Date.now();
+    if (this.fresh) {
+      this.post({ type: "value", value: pack(this.latest) });
+      this.fresh = false;
+    }
+    if (now - this.statsAt < 250 || !this.seen) return;
+    this.statsAt = now;
+    // messages a second over the last two seconds, across the span they cover, as rant sub
+    this.times = this.times.filter((t) => now - t <= 2000);
+    const span = this.times.length > 1 ? (this.times[this.times.length - 1]! - this.times[0]!) / 1000 : 0;
+    this.post({ type: "stats", from: this.from, hz: span > 0 ? (this.times.length - 1) / span : 0, seen: this.seen, age: (now - this.lastAt) / 1000 });
+  }
+
+  private result(r: { ok: boolean; status: string; message: string; hasValue: boolean; value: unknown }): void {
+    this.post({ type: "result", ok: r.ok, head: r.ok ? "ok" : `${r.status}: ${r.message}`, value: r.hasValue ? pack(r.value) : undefined });
   }
 
   private async onPage(m: FromPage): Promise<void> {
     const e = this.entity;
+    const calls = e.kind === "function" || e.kind === "task";
     try {
       switch (m.type) {
         case "ready":
@@ -148,54 +185,49 @@ export class EntityPanel implements vscode.Disposable {
             type: "init",
             kind: e.kind,
             name: e.name,
-            schema: [e.schema?.dsl, e.prg?.dsl, e.rsp?.dsl].filter(Boolean).join("\n\n") || "untyped bytes",
-            template: show(template(e.schema)),
-            typed: !!e.schema,
-            writable: e.kind === "topic" || (e.kind === "variable" && e.writable !== false),
+            value: calls ? null : (e.schema ?? null),
+            req: calls ? (e.schema ?? null) : null,
+            prg: e.prg ?? null,
+            rsp: e.rsp ?? null,
+            writable: e.kind === "variable" && e.writable !== false,
             forceable: !!e.forceable,
             cancellable: !!e.cancellable,
           });
           if (this.lastStatus) this.status(this.lastStatus);
           await this.attach();
           return;
-        case "publish": {
-          const v = this.parse(m.text);
-          if (!v.ok || !this.node) return;
+        case "publish":
+          if (!this.node) return;
           this.h.pub ??= await this.node.publisher(e.name, e.schema?.dsl ?? null, { reliable: e.reliable });
-          this.h.pub.send(v.value);
-          this.status("published");
+          this.h.pub.send(unpack(m.value));
+          this.status("sent");
           return;
-        }
-        case "set": {
-          const v = this.parse(m.text);
-          if (!v.ok || !this.h.variable) return;
-          if (m.force) this.h.variable.force(v.value);
-          else this.h.variable.set(v.value);
+        case "set":
+          if (!this.h.variable) return;
+          if (m.force) this.h.variable.force(unpack(m.value));
+          else this.h.variable.set(unpack(m.value));
           this.status(m.force ? "forced" : "set");
           return;
-        }
         case "unforce":
           this.h.variable?.unforce();
           this.status("released");
           return;
         case "call": {
-          const v = this.parse(m.text);
-          if (!v.ok) return;
+          const value = unpack(m.value);
           if (this.h.fn) {
             this.status("calling");
-            const r = await this.h.fn.call(v.value);
-            this.post({ type: "result", ok: r.ok, head: r.ok ? "ok" : `${r.status}: ${r.message}`, text: r.hasValue ? show(r.value) : "" });
+            this.result(await this.h.fn.call(value));
           } else if (this.h.task) {
-            const call = this.h.task.call(v.value);
+            const call = this.h.task.call(value);
             this.h.call = call;
             this.post({ type: "running", on: true });
-            call.onProgress((p) => this.post({ type: "progress", text: p === null ? "running" : show(p) }));
+            call.onProgress((p) => this.post({ type: "progress", value: p === null ? null : pack(p) }));
             const r = await call.result;
             if (this.h.call === call) this.h.call = undefined;
             this.post({ type: "running", on: false });
-            this.post({ type: "result", ok: r.ok, head: r.ok ? "ok" : `${r.status}: ${r.message}`, text: r.hasValue ? show(r.value) : "" });
+            this.result(r);
           }
-          this.status("ready");
+          this.status("");
           return;
         }
         case "cancel":
@@ -207,10 +239,10 @@ export class EntityPanel implements vscode.Disposable {
     }
   }
 
-  private html(media: vscode.Uri): string {
+  private html(media: vscode.Uri, dist: vscode.Uri): string {
     const web = this.panel.webview;
     const nonce = randomBytes(16).toString("base64");
-    const script = web.asWebviewUri(vscode.Uri.joinPath(media, "entity.js"));
+    const script = web.asWebviewUri(vscode.Uri.joinPath(dist, "page.js"));
     const style = web.asWebviewUri(vscode.Uri.joinPath(media, "entity.css"));
     return `<!DOCTYPE html>
 <html lang="en">
