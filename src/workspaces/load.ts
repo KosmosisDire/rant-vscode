@@ -5,14 +5,15 @@ import type { CliError } from "../cli/errors.ts";
 import { CliMissing, runCli } from "../cli/exec.ts";
 import type { RunResult } from "../cli/exec.ts";
 import type { Cli } from "../cli/locate.ts";
-import { parseGroups, parseNodes, parsePackages } from "../cli/parse.ts";
-import type { GroupInfo, NodeListing, PackageInfo } from "../cli/parse.ts";
+import { parseGroups, parseNodes, parsePackages, parseUses } from "../cli/parse.ts";
+import type { GroupInfo, LibUse, NodeListing, PackageInfo } from "../cli/parse.ts";
 
 export interface WorkspaceData {
   root: string;
   name: string;
   packages: PackageInfo[];
   groups: GroupInfo[];
+  uses: LibUse[];
   listing: NodeListing;
   /** Why the CLI could not read the workspace, as one line. */
   error?: string;
@@ -34,15 +35,17 @@ export async function loadNodes(cli: Cli, root: string): Promise<NodeListing> {
 
 /** Everything the tree shows. A config error comes back as `error`, a missing CLI is thrown. */
 export async function loadWorkspace(cli: Cli, root: string): Promise<WorkspaceData> {
-  const data: WorkspaceData = { root, name: path.basename(root), packages: [], groups: [], listing: EMPTY };
+  const data: WorkspaceData = { root, name: path.basename(root), packages: [], groups: [], uses: [], listing: EMPTY };
   try {
-    const [packages, groups, listing] = await Promise.all([
+    const [packages, groups, uses, listing] = await Promise.all([
       json(cli, root, ["ls", "packages"]),
       json(cli, root, ["ls", "groups"]),
+      json(cli, root, ["lib"]),
       loadNodes(cli, root),
     ]);
     data.packages = parsePackages(packages);
     data.groups = parseGroups(groups);
+    data.uses = parseUses(uses);
     data.listing = listing;
   } catch (e) {
     if (e instanceof CliMissing) throw e;

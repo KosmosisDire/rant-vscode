@@ -60,7 +60,6 @@ async function newFromPreset(view: WorkspacesView, row?: TreeNode): Promise<void
 }
 
 async function openSource(row: TreeNode): Promise<void> {
-  if (row.kind === "group" && row.path) return show(row.path);
   const cli = requireCli();
   if (!cli) return;
   const r = await runCli(cli, ["info", "node", row.ref, "--json"], row.root);
@@ -97,6 +96,8 @@ export function registerCommands(view: WorkspacesView, refreshAll: () => Promise
     vscode.commands.registerCommand("rant.start", act("start")),
     vscode.commands.registerCommand("rant.stop", act("stop")),
     vscode.commands.registerCommand("rant.restart", act("restart")),
+    vscode.commands.registerCommand("rant.lib.update", act("updateRant")),
+    vscode.commands.registerCommand("rant.lib.install", act("addRant")),
     vscode.commands.registerCommand("rant.openSource", async (row?: TreeNode) => {
       if (!row) return;
       try {

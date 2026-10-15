@@ -5,7 +5,20 @@ export interface PackageInfo {
   name: string;
   kinds: string[];
   folder: string;
+  /** Its build files, then its package.rant if it has one. */
+  files: string[];
   rant: string | null;
+}
+
+/** One line of `rant lib --json`: a build file or venv that takes Rant, or could. */
+export interface LibUse {
+  folder: string;
+  kind: string;
+  /** CPM, FetchContent, find_package, pyproject, venv, PackageReference or ProjectReference. */
+  how: string;
+  version: string | null;
+  /** The build file, or the venv folder. */
+  file: string;
 }
 
 /** One line of `rant ls groups --json`. */
@@ -70,7 +83,22 @@ export function parsePackages(raw: string): PackageInfo[] {
       name: text(o.name, what),
       kinds: list(o.kinds, what).map((k) => text(k, what)),
       folder: text(o.folder, what),
+      files: list(o.files, what).map((f) => text(f, what)),
       rant: typeof o.rant === "string" ? o.rant : null,
+    };
+  });
+}
+
+export function parseUses(raw: string): LibUse[] {
+  const what = "lib";
+  return list(parseJson(raw, what), what).map((e) => {
+    const o = object(e, what);
+    return {
+      folder: text(o.folder, what),
+      kind: text(o.kind, what),
+      how: text(o.how, what),
+      version: typeof o.version === "string" ? o.version : null,
+      file: text(o.file, what),
     };
   });
 }
@@ -122,7 +150,7 @@ export function parseSource(raw: string, root: string): SourceTarget | undefined
   const what = "info node";
   const entries = list(parseJson(raw, what), what).map((e) => object(e, what));
   for (const e of entries) {
-    if (typeof e.file === "string") return { file: path.resolve(root, e.file) };
+    if (typeof e.source === "string") return { file: path.resolve(root, e.source) };
   }
   for (const e of entries) {
     if (e.kind === "declared" && typeof e.node === "string" && typeof e.cwd === "string") {

@@ -159,6 +159,18 @@
         "icon": "$(go-to-file)"
       },
       {
+        "command": "rant.lib.update",
+        "title": "Update Rant",
+        "category": "Rant",
+        "icon": "$(arrow-circle-up)"
+      },
+      {
+        "command": "rant.lib.install",
+        "title": "Add Rant",
+        "category": "Rant",
+        "icon": "$(add)"
+      },
+      {
         "command": "rant.openSettings",
         "title": "Open Settings",
         "category": "Rant"
@@ -238,6 +250,14 @@
         },
         {
           "command": "rant.openSource",
+          "when": "false"
+        },
+        {
+          "command": "rant.lib.update",
+          "when": "false"
+        },
+        {
+          "command": "rant.lib.install",
           "when": "false"
         },
         {
@@ -336,6 +356,26 @@
           "command": "rant.refresh",
           "when": "view == rant.workspaces && viewItem =~ /^workspace/",
           "group": "4_refresh@1"
+        },
+        {
+          "command": "rant.lib.update",
+          "when": "view == rant.workspaces && viewItem == build.rant",
+          "group": "inline@1"
+        },
+        {
+          "command": "rant.lib.install",
+          "when": "view == rant.workspaces && viewItem == build.bare",
+          "group": "inline@1"
+        },
+        {
+          "command": "rant.lib.update",
+          "when": "view == rant.workspaces && viewItem =~ /^(workspace|build\\.rant)/",
+          "group": "5_lib@1"
+        },
+        {
+          "command": "rant.lib.install",
+          "when": "view == rant.workspaces && viewItem == build.bare",
+          "group": "5_lib@1"
         },
         {
           "command": "rant.restart",

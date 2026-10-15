@@ -1,6 +1,6 @@
 import type { TreeNode } from "./tree.ts";
 
-export type Action = "build" | "start" | "stop" | "restart";
+export type Action = "build" | "start" | "stop" | "restart" | "updateRant" | "addRant";
 export type PresetKind = "workspace" | "package" | "node" | "group";
 export type Language = "cpp" | "python" | "csharp";
 
@@ -25,6 +25,10 @@ export function actionArgs(action: Action, row: Pick<TreeNode, "kind" | "ref">):
       return kind === "workspace" ? ["stop", "-y"] : kind === "node" || kind === "group" ? ["stop", ref, "-y"] : undefined;
     case "restart":
       return kind === "workspace" ? ["restart"] : kind === "node" || kind === "group" ? ["restart", ref] : undefined;
+    case "updateRant":
+      return kind === "workspace" ? ["lib", "update"] : kind === "build" ? ["lib", "update", ref] : undefined;
+    case "addRant":
+      return kind === "build" ? ["lib", "install", ref] : undefined;
   }
 }
 

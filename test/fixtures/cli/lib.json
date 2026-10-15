@@ -1,0 +1,30 @@
+[
+  {
+    "folder": "C:/work/wsa",
+    "kind": "python",
+    "how": "pyproject",
+    "version": null,
+    "file": "C:/work/wsa/pyproject.toml"
+  },
+  {
+    "folder": "C:/work/wsa",
+    "kind": "python",
+    "how": "venv",
+    "version": "0.0.22",
+    "file": "C:/work/wsa/.venv"
+  },
+  {
+    "folder": "C:/work/wsa/cam",
+    "kind": "cmake",
+    "how": "CPM",
+    "version": "0.0.21",
+    "file": "C:/work/wsa/cam/CMakeLists.txt"
+  },
+  {
+    "folder": "C:/work/wsa/tools",
+    "kind": "python",
+    "how": "venv",
+    "version": null,
+    "file": "C:/work/wsa/tools/env"
+  }
+]

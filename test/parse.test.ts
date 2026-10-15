@@ -2,19 +2,34 @@ import assert from "node:assert/strict";
 import * as path from "node:path";
 import { describe, it } from "node:test";
 
-import { parseGroups, parseNodes, parsePackages, parseSource } from "../src/cli/parse.ts";
+import { parseGroups, parseNodes, parsePackages, parseSource, parseUses } from "../src/cli/parse.ts";
 import { fixture } from "./helpers.ts";
 
 describe("parsePackages", () => {
   it("reads rant ls packages", () => {
     assert.deepEqual(parsePackages(fixture("cli/ls-packages.json")), [
-      { name: "wsa", kinds: ["python"], folder: "C:/work/wsa", rant: "0.0.22" },
+      {
+        name: "wsa",
+        kinds: ["python"],
+        folder: "C:/work/wsa",
+        files: ["C:/work/wsa/pyproject.toml", "C:/work/wsa/package.rant"],
+        rant: "0.0.22",
+      },
     ]);
   });
 
   it("refuses another shape", () => {
     assert.throws(() => parsePackages("{}"), /ls packages/);
     assert.throws(() => parsePackages("not json"), /ls packages/);
+  });
+});
+
+describe("parseUses", () => {
+  it("reads rant lib, a missing version as null", () => {
+    const uses = parseUses(fixture("cli/lib.json"));
+    assert.deepEqual(uses.map((u) => [u.how, u.version]), [["pyproject", null], ["venv", "0.0.22"], ["CPM", "0.0.21"], ["venv", null]]);
+    assert.equal(uses[2]?.file, "C:/work/wsa/cam/CMakeLists.txt");
+    assert.throws(() => parseUses("{}"), /rant lib/);
   });
 });
 
@@ -98,6 +113,12 @@ describe("parseSource", () => {
       file: path.resolve(root, "pkgs/driver/package.rant"),
       find: 'node "tool"',
     });
+  });
+
+  it("never opens a built program, only its source", () => {
+    const native = JSON.stringify([{ node: "cam/cam", kind: "native", file: "build/cam.exe", source: "src/cam.cpp", cwd: "cam" }]);
+    assert.deepEqual(parseSource(native, root), { file: path.resolve(root, "src/cam.cpp") });
+    assert.equal(parseSource(JSON.stringify([{ node: "cam/cam", kind: "native", file: "build/cam.exe", cwd: "cam" }]), root), undefined);
   });
 
   it("knows nothing of a node the mesh shows alone", () => {

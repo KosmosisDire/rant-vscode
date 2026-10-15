@@ -28,10 +28,14 @@ function iconOf(n: TreeNode): vscode.ThemeIcon {
       return n.running ? new vscode.ThemeIcon("layers-active", green) : new vscode.ThemeIcon("layers");
     case "node":
       return n.running ? new vscode.ThemeIcon("circle-filled", green) : new vscode.ThemeIcon("circle-outline");
+    case "build":
+      // the file icon theme picks the icon from the resource
+      return n.open ? vscode.ThemeIcon.File : vscode.ThemeIcon.Folder;
   }
 }
 
 function contextOf(n: TreeNode): string {
+  if (n.kind === "build") return `build.${n.hasRant ? "rant" : "bare"}`;
   return n.kind === "workspace" || n.kind === "node" || n.kind === "group"
     ? `${n.kind}.${n.running ? "running" : "idle"}`
     : n.kind;
@@ -75,6 +79,9 @@ export class WorkspacesView implements vscode.TreeDataProvider<TreeNode>, vscode
     item.tooltip = n.tooltip;
     item.iconPath = iconOf(n);
     item.contextValue = contextOf(n);
+    if (n.kind === "build" && n.path) item.resourceUri = vscode.Uri.file(n.path);
+    if (n.open) item.command = { command: "vscode.open", title: "Open", arguments: [vscode.Uri.file(n.open)] };
+    else if (n.kind === "node") item.command = { command: "rant.openSource", title: "Open Source", arguments: [n] };
     return item;
   }
 
@@ -82,7 +89,6 @@ export class WorkspacesView implements vscode.TreeDataProvider<TreeNode>, vscode
     return n ? n.children : this.tree;
   }
 
-  /** The workspace roots the view shows. */
   /** What each readable workspace started, for the Mesh view. */
   started(): Pick<WorkspaceData, "root" | "name" | "listing">[] {
     return this.registry.roots.flatMap((r) => {
