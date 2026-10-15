@@ -1,0 +1,145 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Rant",
+  "scopeName": "source.rant",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#heredoc" },
+    { "include": "#block-header" },
+    { "include": "#attribute-key" },
+    { "include": "#expression" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.block.rant",
+          "begin": "/\\*",
+          "beginCaptures": { "0": { "name": "punctuation.definition.comment.begin.rant" } },
+          "end": "\\*/",
+          "endCaptures": { "0": { "name": "punctuation.definition.comment.end.rant" } }
+        },
+        {
+          "name": "comment.line.number-sign.rant",
+          "match": "(#).*$",
+          "captures": { "1": { "name": "punctuation.definition.comment.rant" } }
+        },
+        {
+          "name": "comment.line.double-slash.rant",
+          "match": "(//).*$",
+          "captures": { "1": { "name": "punctuation.definition.comment.rant" } }
+        }
+      ]
+    },
+    "block-header": {
+      "match": "^\\s*([A-Za-z_][\\w-]*)((?:\\s+(?:\"[^\"\\n]*\"|[A-Za-z_][\\w-]*))*)\\s*(\\{)",
+      "captures": {
+        "1": { "name": "keyword.control.block.rant" },
+        "2": {
+          "patterns": [
+            { "include": "#string" },
+            { "name": "entity.name.type.label.rant", "match": "[A-Za-z_][\\w-]*" }
+          ]
+        },
+        "3": { "name": "punctuation.section.block.begin.rant" }
+      }
+    },
+    "attribute-key": {
+      "patterns": [
+        {
+          "match": "(\"[^\"\\n]*\")\\s*(=)(?![=>])",
+          "captures": {
+            "1": { "name": "variable.other.property.rant" },
+            "2": { "name": "keyword.operator.assignment.rant" }
+          }
+        },
+        {
+          "match": "([A-Za-z_][\\w-]*)\\s*(=)(?![=>])",
+          "captures": {
+            "1": { "name": "variable.other.property.rant" },
+            "2": { "name": "keyword.operator.assignment.rant" }
+          }
+        }
+      ]
+    },
+    "expression": {
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#heredoc" },
+        { "include": "#string" },
+        { "include": "#number" },
+        { "include": "#constant" },
+        { "include": "#reference" },
+        { "include": "#function-call" },
+        { "include": "#operator" },
+        { "include": "#bracket" },
+        { "name": "variable.other.readwrite.rant", "match": "[A-Za-z_][\\w-]*" }
+      ]
+    },
+    "heredoc": {
+      "begin": "(<<-?)\\s*([A-Za-z_][\\w-]*)\\s*$",
+      "beginCaptures": {
+        "1": { "name": "keyword.operator.heredoc.rant" },
+        "2": { "name": "keyword.control.heredoc.rant" }
+      },
+      "end": "^\\s*(\\2)\\s*$",
+      "endCaptures": { "1": { "name": "keyword.control.heredoc.rant" } },
+      "name": "string.unquoted.heredoc.rant",
+      "patterns": [{ "include": "#interpolation" }]
+    },
+    "string": {
+      "name": "string.quoted.double.rant",
+      "begin": "\"",
+      "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.rant" } },
+      "end": "\"",
+      "endCaptures": { "0": { "name": "punctuation.definition.string.end.rant" } },
+      "patterns": [
+        { "include": "#escape" },
+        { "include": "#interpolation" }
+      ]
+    },
+    "escape": {
+      "name": "constant.character.escape.rant",
+      "match": "\\\\(?:[nrt\"\\\\]|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8})|\\$\\$\\{|%%\\{"
+    },
+    "interpolation": {
+      "name": "meta.interpolation.rant",
+      "begin": "[$%]\\{~?",
+      "beginCaptures": { "0": { "name": "punctuation.section.interpolation.begin.rant" } },
+      "end": "~?\\}",
+      "endCaptures": { "0": { "name": "punctuation.section.interpolation.end.rant" } },
+      "patterns": [{ "include": "#expression" }]
+    },
+    "number": {
+      "name": "constant.numeric.rant",
+      "match": "\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b"
+    },
+    "constant": {
+      "name": "constant.language.rant",
+      "match": "\\b(?:true|false|null)\\b"
+    },
+    "reference": {
+      "match": "\\b(param|path)(\\.)([A-Za-z_][\\w-]*)",
+      "captures": {
+        "1": { "name": "variable.language.rant" },
+        "2": { "name": "punctuation.accessor.rant" },
+        "3": { "name": "variable.other.member.rant" }
+      }
+    },
+    "function-call": {
+      "match": "([A-Za-z_][\\w-]*)\\s*(\\()",
+      "captures": {
+        "1": { "name": "entity.name.function.rant" },
+        "2": { "name": "punctuation.section.parens.begin.rant" }
+      }
+    },
+    "operator": {
+      "name": "keyword.operator.rant",
+      "match": "==|!=|<=|>=|&&|\\|\\||=>|\\.\\.\\.|[-+*/%<>!?:]"
+    },
+    "bracket": {
+      "match": "[\\[\\]{}()]",
+      "name": "punctuation.section.bracket.rant"
+    }
+  }
+}

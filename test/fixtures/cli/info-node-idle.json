@@ -1,0 +1,13 @@
+[
+  {
+    "node": "wsa/talker",
+    "kind": "python",
+    "file": "src/talker.py",
+    "run": "C:/work/wsa/.venv/Scripts/python.exe C:/work/wsa/src/talker.py",
+    "cwd": ".",
+    "groups": [
+      "wsa/WsaGroup"
+    ],
+    "running": []
+  }
+]

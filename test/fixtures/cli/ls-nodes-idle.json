@@ -1,0 +1,16 @@
+{
+  "groups": [],
+  "nodes": [],
+  "not_running": [
+    {
+      "name": "wsa/listener",
+      "kind": "python",
+      "path": "C:/work/wsa/src/listener.py"
+    },
+    {
+      "name": "wsa/talker",
+      "kind": "python",
+      "path": "C:/work/wsa/src/talker.py"
+    }
+  ]
+}

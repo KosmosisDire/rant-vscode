@@ -1,0 +1,19 @@
+{
+  "groups": [
+    {
+      "group": "wsa/WsaGroup",
+      "nodes": [
+        {
+          "name": "talker",
+          "on_mesh": true
+        },
+        {
+          "name": "listener",
+          "on_mesh": true
+        }
+      ]
+    }
+  ],
+  "nodes": [],
+  "not_running": []
+}

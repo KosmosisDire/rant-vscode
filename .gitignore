@@ -1,0 +1,5 @@
+node_modules/
+dist/
+*.vsix
+CLAUDE.md
+AGENTS.md

@@ -1,0 +1,352 @@
+{
+  "name": "vscode-rant",
+  "displayName": "Rant",
+  "description": "Rant workspaces: syntax, completion and errors for workspace.rant, package.rant and group files, and a view to build, start and stop nodes.",
+  "version": "0.0.1",
+  "rantBridge": "0.1.0",
+  "publisher": "kosmosisdire",
+  "license": "UNLICENSED",
+  "private": true,
+  "engines": {
+    "vscode": "^1.101.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:**/workspace.rant"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "rant",
+        "aliases": [
+          "Rant"
+        ],
+        "filenamePatterns": [
+          "workspace.rant",
+          "package.rant",
+          "*.rant",
+          "*.run"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "rant",
+        "scopeName": "source.rant",
+        "path": "./syntaxes/rant.tmLanguage.json"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "rant",
+          "title": "Rant",
+          "icon": "media/rant.svg"
+        }
+      ]
+    },
+    "views": {
+      "rant": [
+        {
+          "id": "rant.workspaces",
+          "name": "Workspaces"
+        },
+        {
+          "id": "rant.mesh",
+          "name": "Mesh"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "rant.workspaces",
+        "contents": "The Rant command line tool was not found.\n[Open Settings](command:rant.openSettings)\nInstall it from https://github.com/KosmosisDire/rant-cli or set the path in the setting rant.cliPath.",
+        "when": "rant.cliMissing"
+      },
+      {
+        "view": "rant.workspaces",
+        "contents": "No workspace.rant found in the open folders.\n[New From Preset](command:rant.new)",
+        "when": "!rant.cliMissing && !rant.hasWorkspaces"
+      },
+      {
+        "view": "rant.mesh",
+        "contents": "No Rant bridge is set up on this machine. The bridge lets the editor see the mesh.\n[Enable the Bridge](command:rant.bridge.enable)",
+        "when": "rant.bridge == missing"
+      },
+      {
+        "view": "rant.mesh",
+        "contents": "The Rant bridge is not running.\n[Start the Bridge](command:rant.bridge.start)",
+        "when": "rant.bridge == down"
+      },
+      {
+        "view": "rant.mesh",
+        "contents": "Connecting to the Rant bridge.",
+        "when": "rant.bridge == connecting || rant.bridge == reconnecting"
+      },
+      {
+        "view": "rant.mesh",
+        "contents": "The Rant bridge refused the connection. Its passphrase is in ~/.rant/bridge.yaml.\n[Restart the Bridge](command:rant.bridge.restart)\n[Try Again](command:rant.bridge.reconnect)",
+        "when": "rant.bridge == refused"
+      },
+      {
+        "view": "rant.mesh",
+        "contents": "Nothing on this domain yet.\n[Change Domain](command:rant.mesh.domain)",
+        "when": "rant.bridge == open"
+      }
+    ],
+    "commands": [
+      {
+        "command": "rant.refresh",
+        "title": "Refresh",
+        "category": "Rant",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "rant.new",
+        "title": "New From Preset",
+        "category": "Rant",
+        "icon": "$(add)"
+      },
+      {
+        "command": "rant.build",
+        "title": "Build",
+        "category": "Rant",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "rant.start",
+        "title": "Start",
+        "category": "Rant",
+        "icon": "$(play)"
+      },
+      {
+        "command": "rant.stop",
+        "title": "Stop",
+        "category": "Rant",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "rant.restart",
+        "title": "Restart",
+        "category": "Rant",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "rant.openSource",
+        "title": "Open Source",
+        "category": "Rant",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "rant.openSettings",
+        "title": "Open Settings",
+        "category": "Rant"
+      },
+      {
+        "command": "rant.mesh.refresh",
+        "title": "Refresh Mesh",
+        "category": "Rant",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "rant.mesh.open",
+        "title": "Open",
+        "category": "Rant"
+      },
+      {
+        "command": "rant.mesh.logs",
+        "title": "Show Mesh Logs",
+        "category": "Rant",
+        "icon": "$(output)"
+      },
+      {
+        "command": "rant.mesh.domain",
+        "title": "Change Mesh Domain",
+        "category": "Rant",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "rant.bridge.enable",
+        "title": "Enable Bridge",
+        "category": "Rant"
+      },
+      {
+        "command": "rant.bridge.start",
+        "title": "Start Bridge",
+        "category": "Rant"
+      },
+      {
+        "command": "rant.bridge.restart",
+        "title": "Restart Bridge",
+        "category": "Rant"
+      },
+      {
+        "command": "rant.bridge.reconnect",
+        "title": "Reconnect to Bridge",
+        "category": "Rant"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "rant.build",
+          "when": "false"
+        },
+        {
+          "command": "rant.start",
+          "when": "false"
+        },
+        {
+          "command": "rant.stop",
+          "when": "false"
+        },
+        {
+          "command": "rant.restart",
+          "when": "false"
+        },
+        {
+          "command": "rant.openSource",
+          "when": "false"
+        },
+        {
+          "command": "rant.openSettings",
+          "when": "false"
+        },
+        {
+          "command": "rant.mesh.open",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "rant.new",
+          "when": "view == rant.workspaces",
+          "group": "navigation@1"
+        },
+        {
+          "command": "rant.refresh",
+          "when": "view == rant.workspaces",
+          "group": "navigation@2"
+        },
+        {
+          "command": "rant.mesh.domain",
+          "when": "view == rant.mesh",
+          "group": "navigation@1"
+        },
+        {
+          "command": "rant.mesh.logs",
+          "when": "view == rant.mesh",
+          "group": "navigation@2"
+        },
+        {
+          "command": "rant.mesh.refresh",
+          "when": "view == rant.mesh",
+          "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "rant.build",
+          "when": "view == rant.workspaces && viewItem =~ /^(workspace|package)/",
+          "group": "inline@1"
+        },
+        {
+          "command": "rant.start",
+          "when": "view == rant.workspaces && viewItem =~ /^(node|group)\\.idle/",
+          "group": "inline@1"
+        },
+        {
+          "command": "rant.restart",
+          "when": "view == rant.workspaces && viewItem =~ /^(workspace|(node|group)\\.running)/",
+          "group": "inline@2"
+        },
+        {
+          "command": "rant.stop",
+          "when": "view == rant.workspaces && viewItem =~ /^(workspace\\.running|(node|group)\\.running)/",
+          "group": "inline@3"
+        },
+        {
+          "command": "rant.build",
+          "when": "view == rant.workspaces && viewItem =~ /^(workspace|package)/",
+          "group": "1_run@1"
+        },
+        {
+          "command": "rant.start",
+          "when": "view == rant.workspaces && viewItem =~ /^(node|group)\\.idle/",
+          "group": "1_run@2"
+        },
+        {
+          "command": "rant.restart",
+          "when": "view == rant.workspaces && viewItem =~ /^(workspace|(node|group)\\.running)/",
+          "group": "1_run@3"
+        },
+        {
+          "command": "rant.stop",
+          "when": "view == rant.workspaces && viewItem =~ /^(workspace\\.running|(node|group)\\.running)/",
+          "group": "1_run@4"
+        },
+        {
+          "command": "rant.openSource",
+          "when": "view == rant.workspaces && viewItem =~ /^node/",
+          "group": "2_open@1"
+        },
+        {
+          "command": "rant.new",
+          "when": "view == rant.workspaces && viewItem =~ /^(workspace|package)/",
+          "group": "3_new@1"
+        },
+        {
+          "command": "rant.refresh",
+          "when": "view == rant.workspaces && viewItem =~ /^workspace/",
+          "group": "4_refresh@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Rant",
+      "properties": {
+        "rant.cliPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path of the `rant` command line tool. Empty uses `rant` on PATH, then `~/.rant/bin/rant`."
+        },
+        "rant.domain": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "default": null,
+          "minimum": 0,
+          "maximum": 65535,
+          "markdownDescription": "The Rant domain the Mesh view explores. Empty uses `RANT_DOMAIN`, else 0."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "check": "tsc --noEmit",
+    "test": "node --experimental-strip-types --no-warnings --test-reporter=spec --test \"test/**/*.test.ts\"",
+    "package": "npm run check && npm run build && vsce package --no-dependencies --allow-missing-repository --skip-license"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "~1.101.0",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.0",
+    "typescript": "^5.9.0"
+  },
+  "dependencies": {
+    "rant-client": "file:../web-rant/client",
+    "yaml": "^2.9.1"
+  }
+}

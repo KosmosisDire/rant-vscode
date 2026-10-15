@@ -1,0 +1,16 @@
+{
+  "groups": [],
+  "nodes": [
+    {
+      "name": "talker",
+      "on_mesh": true
+    }
+  ],
+  "not_running": [
+    {
+      "name": "wsa/listener",
+      "kind": "python",
+      "path": "C:/work/wsa/src/listener.py"
+    }
+  ]
+}

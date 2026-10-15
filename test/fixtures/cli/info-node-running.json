@@ -1,0 +1,32 @@
+[
+  {
+    "node": "wsa/talker",
+    "kind": "python",
+    "file": "src/talker.py",
+    "run": "C:/work/wsa/.venv/Scripts/python.exe C:/work/wsa/src/talker.py",
+    "cwd": ".",
+    "groups": [
+      "wsa/WsaGroup"
+    ],
+    "running": [
+      "talker"
+    ]
+  },
+  {
+    "node": "talker",
+    "from": "wsa/talker",
+    "run": [
+      "C:/work/wsa/.venv/Scripts/python.exe",
+      "C:/work/wsa/src/talker.py"
+    ],
+    "log": "C:/work/wsa/logs/talker.log",
+    "roots": [
+      "group wsa/WsaGroup"
+    ],
+    "address": "100.76.127.37:64492",
+    "pid": 184664,
+    "publishes": [
+      "Pose"
+    ]
+  }
+]

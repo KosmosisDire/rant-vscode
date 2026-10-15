@@ -1,0 +1,6 @@
+error: C:/work/wsb/pkgs/other/package.rant:2:1: node `bad` needs `run`
+error: C:/work/wsb/pkgs/dup/package.rant: package name `driver` is also used by C:\work\wsb\pkgs\driver, set `name` in package.rant to tell them apart
+error: C:/work/wsb/workspace.rant:2:6: syntax error: expected `{`
+error: C:/work/wsb/Bad.run:3:1: unknown attribute `bogus` in a group file, expected one of: description, domain, prefix, node_prefix
+error: param `a` needs a value, see `rant run Bad --help`
+error: no group named `Bad`, see `rant ls`

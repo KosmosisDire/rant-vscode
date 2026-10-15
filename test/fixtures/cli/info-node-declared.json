@@ -1,0 +1,10 @@
+[
+  {
+    "node": "driver/tool",
+    "kind": "declared",
+    "run": "./tool --flag",
+    "cwd": "pkgs/driver",
+    "groups": [],
+    "running": []
+  }
+]
