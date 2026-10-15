@@ -54,6 +54,8 @@ export class Registry implements vscode.Disposable {
     };
     watch("**/*.rant", config);
     watch("**/*.run", config);
+    // build files make packages and name their Rant
+    watch("**/{CMakeLists.txt,pyproject.toml,*.csproj}", config);
     // every rant read rewrites .rant/state, so only a change of its content counts
     watch("**/.rant/state", (uri) => {
       const root = rootOf(this.roots, path.dirname(path.dirname(uri.fsPath)));

@@ -52,7 +52,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (e.affectsConfiguration("rant.cliPath")) void refreshAll();
       if (e.affectsConfiguration("rant.domain") || e.affectsConfiguration("rant.bridgeUrl")) void bridge.reconnect();
     }),
-    onCommandDone((root) => void view.reloadNodes(root)),
+    // a command may add a package, a node or a build file, or move Rant, so all of it is read again
+    onCommandDone((root) => void view.reload([root])),
   );
 
   await refreshAll();
