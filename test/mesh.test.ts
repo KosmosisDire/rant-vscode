@@ -59,11 +59,11 @@ const listing = (groups: Record<string, string[]>, loose: string[] = []): NodeLi
   const nodes = new Map<string, NodeEntry>();
   for (const [g, names] of Object.entries(groups))
     for (const n of names) {
-      const e = nodes.get(n) ?? { name: n, running: true, groups: [] };
+      const e: NodeEntry = nodes.get(n) ?? { name: n, type: `p/${n}`, running: true, groups: [] };
       e.groups.push(g);
       nodes.set(n, e);
     }
-  for (const n of loose) nodes.set(n, { name: n, running: true, groups: [] });
+  for (const n of loose) nodes.set(n, { name: n, type: `p/${n}`, running: true, groups: [] });
   return { nodes: [...nodes.values()], runningGroups: Object.keys(groups) };
 };
 // a tree as labels: a row with children as [label, children], a leaf as its label

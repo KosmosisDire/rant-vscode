@@ -14,8 +14,8 @@ export const PRESET_KINDS: ReadonlyArray<{ kind: PresetKind; detail: string }> =
 export const LANGUAGES: readonly Language[] = ["cpp", "python", "csharp"];
 
 /** The CLI arguments for an action on a row, or undefined when the action does not fit the row. */
-export function actionArgs(action: Action, row: Pick<TreeNode, "kind" | "ref">): string[] | undefined {
-  const { kind, ref } = row;
+export function actionArgs(action: Action, row: Pick<TreeNode, "kind" | "ref" | "lib">): string[] | undefined {
+  const { kind, ref, lib } = row;
   switch (action) {
     case "build":
       return kind === "workspace" ? ["build"] : kind === "package" ? ["build", ref] : undefined;
@@ -26,9 +26,9 @@ export function actionArgs(action: Action, row: Pick<TreeNode, "kind" | "ref">):
     case "restart":
       return kind === "workspace" ? ["restart"] : kind === "node" || kind === "group" ? ["restart", ref] : undefined;
     case "updateRant":
-      return kind === "workspace" ? ["lib", "update"] : kind === "build" ? ["lib", "update", ref] : undefined;
+      return kind === "workspace" ? ["lib", "update"] : lib ? ["lib", "update", lib] : undefined;
     case "addRant":
-      return kind === "build" ? ["lib", "install", ref] : undefined;
+      return lib ? ["lib", "install", lib] : undefined;
   }
 }
 

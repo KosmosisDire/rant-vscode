@@ -2,7 +2,8 @@
   "groups": [],
   "nodes": [
     {
-      "name": "talker"
+      "name": "talker",
+      "type": "C:/work/wsa/tools/talker.py"
     }
   ],
   "not_running": [

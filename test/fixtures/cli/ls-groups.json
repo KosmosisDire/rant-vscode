@@ -3,6 +3,17 @@
     "name": "wsa/WsaGroup",
     "file": "C:/work/wsa/WsaGroup.run",
     "description": "The talker and the listener",
-    "params": ""
+    "params": "",
+    "includes": [],
+    "nodes": [
+      {
+        "name": "talker",
+        "type": "wsa/talker"
+      },
+      {
+        "name": "listener",
+        "type": "wsa/listener"
+      }
+    ]
   }
 ]

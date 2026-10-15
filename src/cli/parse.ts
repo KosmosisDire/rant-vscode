@@ -21,17 +21,29 @@ export interface LibUse {
   file: string;
 }
 
+/** A node a group's own block starts, as the param defaults name it. */
+export interface GroupNode {
+  name: string;
+  /** The node type, `package/node` or the path of a file outside every package. */
+  type: string;
+}
+
 /** One line of `rant ls groups --json`. */
 export interface GroupInfo {
   name: string;
   file: string;
   description: string;
   params: string;
+  /** The groups it includes, by full name. */
+  includes: string[];
+  nodes: GroupNode[];
 }
 
 /** A node the workspace could start (name is the type, `package/node`) or one it started (name is its mesh name). */
 export interface NodeEntry {
   name: string;
+  /** `package/node`, or the path of a file outside every package. */
+  type: string;
   running: boolean;
   groups: string[];
   kind?: string;
@@ -112,6 +124,11 @@ export function parseGroups(raw: string): GroupInfo[] {
       file: text(o.file, what),
       description: text(o.description, what),
       params: text(o.params, what),
+      includes: list(o.includes, what).map((i) => text(i, what)),
+      nodes: list(o.nodes, what).map((n) => {
+        const r = object(n, what);
+        return { name: text(r.name, what), type: text(r.type, what) };
+      }),
     };
   });
 }
@@ -125,7 +142,7 @@ export function parseNodes(raw: string): NodeListing {
   const running = (row: unknown, group?: string) => {
     const r = object(row, what);
     const name = text(r.name, what);
-    const entry = byName.get(name) ?? { name, running: true, groups: [] };
+    const entry = byName.get(name) ?? { name, type: text(r.type, what), running: true, groups: [] };
     if (group && !entry.groups.includes(group)) entry.groups.push(group);
     byName.set(name, entry);
   };
@@ -140,7 +157,8 @@ export function parseNodes(raw: string): NodeListing {
   const nodes = [...byName.values()];
   for (const n of list(o.not_running ?? [], what)) {
     const r = object(n, what);
-    nodes.push({ name: text(r.name, what), running: false, groups: [], kind: text(r.kind, what) });
+    const name = text(r.name, what);
+    nodes.push({ name, type: name, running: false, groups: [], kind: text(r.kind, what) });
   }
   return { nodes, runningGroups };
 }

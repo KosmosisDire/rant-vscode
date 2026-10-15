@@ -129,10 +129,21 @@
         "icon": "$(add)"
       },
       {
+        "command": "rant.buildAll",
+        "title": "Build All",
+        "category": "Rant",
+        "icon": "$(tools)"
+      },
+      {
         "command": "rant.build",
         "title": "Build",
         "category": "Rant",
         "icon": "$(tools)"
+      },
+      {
+        "command": "rant.revealGroup",
+        "title": "Go to Group",
+        "category": "Rant"
       },
       {
         "command": "rant.start",
@@ -253,6 +264,10 @@
           "when": "false"
         },
         {
+          "command": "rant.revealGroup",
+          "when": "false"
+        },
+        {
           "command": "rant.lib.update",
           "when": "false"
         },
@@ -271,14 +286,19 @@
       ],
       "view/title": [
         {
+          "command": "rant.buildAll",
+          "when": "view == rant.workspaces && rant.hasWorkspaces",
+          "group": "navigation@1"
+        },
+        {
           "command": "rant.new",
           "when": "view == rant.workspaces",
-          "group": "navigation@1"
+          "group": "navigation@2"
         },
         {
           "command": "rant.refresh",
           "when": "view == rant.workspaces",
-          "group": "navigation@2"
+          "group": "navigation@3"
         },
         {
           "command": "rant.bridge.choose",
@@ -359,22 +379,22 @@
         },
         {
           "command": "rant.lib.update",
-          "when": "view == rant.workspaces && viewItem == build.rant",
-          "group": "inline@1"
+          "when": "view == rant.workspaces && viewItem =~ /^(package|build)\\.rant$/",
+          "group": "inline@2"
         },
         {
           "command": "rant.lib.install",
-          "when": "view == rant.workspaces && viewItem == build.bare",
-          "group": "inline@1"
+          "when": "view == rant.workspaces && viewItem =~ /^(package|build)\\.bare$/",
+          "group": "inline@2"
         },
         {
           "command": "rant.lib.update",
-          "when": "view == rant.workspaces && viewItem =~ /^(workspace|build\\.rant)/",
+          "when": "view == rant.workspaces && viewItem =~ /^(workspace|(package|build)\\.rant$)/",
           "group": "5_lib@1"
         },
         {
           "command": "rant.lib.install",
-          "when": "view == rant.workspaces && viewItem == build.bare",
+          "when": "view == rant.workspaces && viewItem =~ /^(package|build)\\.bare$/",
           "group": "5_lib@1"
         },
         {

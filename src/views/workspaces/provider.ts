@@ -6,7 +6,7 @@ import { loadNodes, loadWorkspace } from "../../workspaces/load.ts";
 import type { WorkspaceData } from "../../workspaces/load.ts";
 import { pathKey } from "../../workspaces/paths.ts";
 import type { Registry } from "../../workspaces/registry.ts";
-import { buildTree } from "./tree.ts";
+import { buildTree, parents } from "./tree.ts";
 import type { TreeNode } from "./tree.ts";
 
 const POLL_MS = 3000;
@@ -26,6 +26,8 @@ function iconOf(n: TreeNode): vscode.ThemeIcon {
       return new vscode.ThemeIcon("package");
     case "group":
       return n.running ? new vscode.ThemeIcon("layers-active", green) : new vscode.ThemeIcon("layers");
+    case "include":
+      return new vscode.ThemeIcon("layers");
     case "node":
       return n.running ? new vscode.ThemeIcon("circle-filled", green) : new vscode.ThemeIcon("circle-outline");
     case "build":
@@ -35,7 +37,9 @@ function iconOf(n: TreeNode): vscode.ThemeIcon {
 }
 
 function contextOf(n: TreeNode): string {
-  if (n.kind === "build") return `build.${n.hasRant ? "rant" : "bare"}`;
+  if (n.kind === "build" || (n.kind === "package" && n.hasRant !== undefined)) return `${n.kind}.${n.hasRant ? "rant" : "bare"}`;
+  // a group's node starts with its group, so an idle one has no start of its own
+  if (n.kind === "node" && n.member && !n.running) return "member";
   return n.kind === "workspace" || n.kind === "node" || n.kind === "group"
     ? `${n.kind}.${n.running ? "running" : "idle"}`
     : n.kind;
@@ -48,6 +52,7 @@ export class WorkspacesView implements vscode.TreeDataProvider<TreeNode>, vscode
   private readonly data = new Map<string, WorkspaceData>();
   private readonly loads = new Map<string, number>();
   private tree: TreeNode[] = [];
+  private parentOf = new Map<string, TreeNode | undefined>();
   private timer: NodeJS.Timeout | undefined;
   private polling = false;
   private watchers = 0;
@@ -69,10 +74,9 @@ export class WorkspacesView implements vscode.TreeDataProvider<TreeNode>, vscode
   }
 
   getTreeItem(n: TreeNode): vscode.TreeItem {
-    const open = n.kind === "workspace" || n.kind === "section";
     const item = new vscode.TreeItem(
       n.label,
-      n.children.length && open ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None,
+      n.children.length ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None,
     );
     item.id = n.id;
     item.description = n.description;
@@ -82,11 +86,32 @@ export class WorkspacesView implements vscode.TreeDataProvider<TreeNode>, vscode
     if (n.kind === "build" && n.path) item.resourceUri = vscode.Uri.file(n.path);
     if (n.open) item.command = { command: "vscode.open", title: "Open", arguments: [vscode.Uri.file(n.open)] };
     else if (n.kind === "node") item.command = { command: "rant.openSource", title: "Open Source", arguments: [n] };
+    else if (n.kind === "include") item.command = { command: "rant.revealGroup", title: "Go to Group", arguments: [n] };
     return item;
   }
 
   getChildren(n?: TreeNode): TreeNode[] {
     return n ? n.children : this.tree;
+  }
+
+  getParent(n: TreeNode): TreeNode | undefined {
+    return this.parentOf.get(n.id);
+  }
+
+  /** Selects the row of a group by name in a workspace. */
+  async revealGroup(root: string, name: string): Promise<void> {
+    const id = `${root}|group|${name}`;
+    const target = [...this.parentOf.keys()].includes(id) ? this.find(this.tree, id) : undefined;
+    if (target) await this.view.reveal(target, { select: true, focus: true, expand: true });
+  }
+
+  private find(nodes: TreeNode[], id: string): TreeNode | undefined {
+    for (const n of nodes) {
+      if (n.id === id) return n;
+      const inner = this.find(n.children, id);
+      if (inner) return inner;
+    }
+    return undefined;
   }
 
   /** What each readable workspace started, for the Mesh view. */
@@ -165,6 +190,7 @@ export class WorkspacesView implements vscode.TreeDataProvider<TreeNode>, vscode
 
   private rebuild(): void {
     this.tree = buildTree(this.registry.roots.flatMap((r) => this.data.get(pathKey(r)) ?? []));
+    this.parentOf = parents(this.tree);
     this.changed.fire();
   }
 

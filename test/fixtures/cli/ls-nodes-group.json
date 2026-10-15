@@ -4,10 +4,12 @@
       "group": "wsa/WsaGroup",
       "nodes": [
         {
-          "name": "talker"
+          "name": "talker",
+          "type": "wsa/talker"
         },
         {
-          "name": "listener"
+          "name": "listener",
+          "type": "wsa/listener"
         }
       ]
     }

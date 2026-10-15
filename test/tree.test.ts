@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 
 import { parseGroups, parseNodes, parsePackages, parseUses } from "../src/cli/parse.ts";
 import { actionArgs, newArgs, validName } from "../src/views/workspaces/actions.ts";
-import { buildTree } from "../src/views/workspaces/tree.ts";
+import { buildTree, parents } from "../src/views/workspaces/tree.ts";
 import type { TreeNode } from "../src/views/workspaces/tree.ts";
 import type { WorkspaceData } from "../src/workspaces/load.ts";
 import { fixture } from "./helpers.ts";
@@ -22,65 +22,80 @@ function workspace(nodes: string): WorkspaceData {
 const sectionOf = (ws: TreeNode | undefined, label: string): TreeNode[] => ws?.children.find((c) => c.label === label)?.children ?? [];
 
 describe("buildTree", () => {
-  it("shows packages, nodes and groups of an idle workspace", () => {
+  // a tree as [label, description] with children, a leaf as the pair alone
+  const shape = (nodes: TreeNode[]): unknown[] =>
+    nodes.map((n) => (n.children.length ? [n.label, n.description ?? "", shape(n.children)] : [n.label, n.description ?? ""]));
+
+  it("puts nodes and extra build systems under their package, the rest outside", () => {
     const [ws] = buildTree([workspace("cli/ls-nodes-idle.json")]);
-    assert.equal(ws?.label, "wsa");
     assert.equal(ws?.running, false);
-    assert.deepEqual(ws?.children.map((c) => [c.label, c.description]), [
-      ["Packages", "1"],
-      ["Build systems", "4"],
-      ["Nodes", "2"],
-      ["Groups", "1"],
+    assert.deepEqual(shape(ws?.children ?? []), [
+      ["Packages", "1", [["wsa", "Python, Rant 0.0.22", [["listener", ""], ["talker", ""], [".venv", "Rant 0.0.22"]]]]],
+      ["Outside packages", "2", [["cam", "C++, Rant 0.0.21"], ["tools/env", "no Rant"]]],
+      ["Groups", "1", [["wsa/WsaGroup", "The talker and the listener", [["talker", ""], ["listener", ""]]]]],
     ]);
-    const nodes = sectionOf(ws, "Nodes");
-    assert.deepEqual(nodes.map((n) => [n.ref, n.running, n.description]), [
-      ["wsa/listener", false, "python"],
-      ["wsa/talker", false, "python"],
-    ]);
+    const talker = sectionOf(ws, "Packages")[0]?.children[1];
+    assert.deepEqual([talker?.ref, talker?.nodeType, talker?.member], ["wsa/talker", "wsa/talker", undefined]);
   });
 
-  it("marks running nodes and groups and puts them first", () => {
-    const [ws] = buildTree([workspace("cli/ls-nodes-loose.json")]);
-    assert.equal(ws?.running, true);
-    assert.equal(ws?.description, "1 running");
-    const nodes = sectionOf(ws, "Nodes");
-    assert.deepEqual(nodes.map((n) => [n.ref, n.running]), [["talker", true], ["wsa/listener", false]]);
-
-    const [grouped] = buildTree([workspace("cli/ls-nodes-group.json")]);
-    const group = grouped?.children.find((c) => c.label === "Groups")?.children[0];
+  it("shows a running node by its mesh name and marks it under its group", () => {
+    const [ws] = buildTree([workspace("cli/ls-nodes-group.json")]);
+    assert.equal(ws?.description, "2 running");
+    const nodes = sectionOf(ws, "Packages")[0]?.children.filter((c) => c.kind === "node") ?? [];
+    assert.deepEqual(nodes.map((n) => [n.label, n.ref, n.running]), [["listener", "listener", true], ["talker", "talker", true]]);
+    const group = sectionOf(ws, "Groups")[0];
     assert.equal(group?.running, true);
-    assert.equal(group?.description, "running, The talker and the listener");
-    assert.equal(sectionOf(grouped, "Nodes")[0]?.description, "running, wsa/WsaGroup");
-  });
-
-  it("opens a package's build file and a group's file on a click, never a node's", () => {
-    const [ws] = buildTree([workspace("cli/ls-nodes-idle.json")]);
-    assert.equal(sectionOf(ws, "Packages")[0]?.open, "C:/work/wsa/pyproject.toml");
-    assert.equal(sectionOf(ws, "Groups")[0]?.open, sectionOf(ws, "Groups")[0]?.path);
-    assert.equal(sectionOf(ws, "Nodes")[0]?.open, undefined);
-  });
-
-  it("lists build systems by file with their Rant, a venv never opened", () => {
-    const [ws] = buildTree([workspace("cli/ls-nodes-idle.json")]);
-    const rows = sectionOf(ws, "Build systems");
-    assert.deepEqual(rows.map((r) => [r.label, r.ref, r.description, r.hasRant, r.open !== undefined]), [
-      [".venv", ".", "venv, Rant 0.0.22", true, false],
-      ["cam/CMakeLists.txt", "cam", "CPM, Rant 0.0.21", true, true],
-      ["pyproject.toml", ".", "pyproject, Rant unpinned", true, true],
-      ["tools/env", "tools", "venv, no Rant", false, false],
+    assert.deepEqual(group?.children.map((c) => [c.ref, c.running, c.member, c.nodeType]), [
+      ["talker", true, true, "wsa/talker"],
+      ["listener", true, true, "wsa/listener"],
     ]);
   });
 
-  it("lists a package build file without Rant so Rant can be added", () => {
+  it("lists a node outside every package with the build systems outside", () => {
+    const [ws] = buildTree([workspace("cli/ls-nodes-loose.json")]);
+    assert.deepEqual(sectionOf(ws, "Outside packages").map((r) => [r.kind, r.label, r.running]), [
+      ["build", "cam", false],
+      ["node", "talker", true],
+      ["build", "tools/env", false],
+    ]);
+  });
+
+  it("links an included group to its own row instead of nesting what it runs", () => {
     const w = workspace("cli/ls-nodes-idle.json");
-    const [ws] = buildTree([{ ...w, packages: [{ ...w.packages[0]!, files: ["C:/work/wsa/arm/Arm.csproj"] }] }]);
-    const arm = sectionOf(ws, "Build systems").find((r) => r.label === "arm/Arm.csproj");
-    assert.deepEqual([arm?.ref, arm?.description, arm?.hasRant], ["arm", "no Rant", false]);
+    const all = { name: "All", file: "C:/work/wsa/All.run", description: "", params: "", includes: ["wsa/WsaGroup"], nodes: [] };
+    const [ws] = buildTree([{ ...w, groups: [...w.groups, all] }]);
+    const link = sectionOf(ws, "Groups")[0]?.children[0];
+    assert.deepEqual([link?.kind, link?.ref, link?.children.length], ["include", "wsa/WsaGroup", 0]);
+    assert.ok(parents(buildTree([{ ...w, groups: [...w.groups, all] }])).has(`${w.root}|group|wsa/WsaGroup`));
+  });
+
+  it("opens build files and group files on a click, a node through its source", () => {
+    const [ws] = buildTree([workspace("cli/ls-nodes-idle.json")]);
+    const pkg = sectionOf(ws, "Packages")[0];
+    assert.equal(pkg?.open, "C:/work/wsa/pyproject.toml");
+    assert.equal(pkg?.children.find((c) => c.label === ".venv")?.open, undefined);
+    assert.equal(sectionOf(ws, "Outside packages")[0]?.open, "C:/work/wsa/cam/CMakeLists.txt");
+    assert.equal(sectionOf(ws, "Groups")[0]?.open, "C:/work/wsa/WsaGroup.run");
+    assert.equal(pkg?.children[0]?.open, undefined);
+  });
+
+  it("offers Rant by the folder rant lib takes, update where it is, add where not", () => {
+    const w = workspace("cli/ls-nodes-idle.json");
+    const [ws] = buildTree([w]);
+    assert.deepEqual([sectionOf(ws, "Packages")[0]?.lib, sectionOf(ws, "Packages")[0]?.hasRant], [".", true]);
+    assert.deepEqual(sectionOf(ws, "Outside packages").map((r) => [r.lib, r.hasRant]), [["cam", true], ["tools", false]]);
+    const bare = { ...w.packages[0]!, files: ["C:/work/wsa/arm/Arm.csproj"], kinds: ["csharp"], rant: null, folder: "C:/work/wsa/arm", name: "arm" };
+    const declared = { ...w.packages[0]!, files: ["C:/work/wsa/drv/package.rant"], kinds: ["package.rant"], rant: null, folder: "C:/work/wsa/drv", name: "drv" };
+    const [more] = buildTree([{ ...w, packages: [bare, declared] }]);
+    assert.deepEqual(sectionOf(more, "Packages").map((p) => [p.label, p.description, p.lib, p.hasRant]), [
+      ["arm", "C#, no Rant", "arm", false],
+      ["drv", "", undefined, undefined],
+    ]);
   });
 
   it("gives every row an id that stays the same between builds", () => {
-    const a = buildTree([workspace("cli/ls-nodes-idle.json")]);
-    const b = buildTree([workspace("cli/ls-nodes-idle.json")]);
+    const a = buildTree([workspace("cli/ls-nodes-group.json")]);
+    const b = buildTree([workspace("cli/ls-nodes-group.json")]);
     const ids = (t: typeof a): string[] => t.flatMap((n) => [n.id, ...ids(n.children)]);
     assert.deepEqual(ids(a), ids(b));
     assert.equal(new Set(ids(a)).size, ids(a).length);
@@ -101,8 +116,8 @@ describe("buildTree", () => {
   });
 
   it("leaves out sections with nothing in them", () => {
-    const [ws] = buildTree([{ ...workspace("cli/ls-nodes-idle.json"), groups: [] }]);
-    assert.deepEqual(ws?.children.map((c) => c.label), ["Packages", "Build systems", "Nodes"]);
+    const [ws] = buildTree([{ ...workspace("cli/ls-nodes-idle.json"), groups: [], uses: [] }]);
+    assert.deepEqual(ws?.children.map((c) => c.label), ["Packages"]);
   });
 });
 
@@ -123,9 +138,10 @@ describe("actionArgs", () => {
 
   it("updates Rant in a workspace or a build system and adds it to one", () => {
     assert.deepEqual(actionArgs("updateRant", { kind: "workspace", ref: "/ws" }), ["lib", "update"]);
-    assert.deepEqual(actionArgs("updateRant", { kind: "build", ref: "cam" }), ["lib", "update", "cam"]);
-    assert.deepEqual(actionArgs("addRant", { kind: "build", ref: "tools" }), ["lib", "install", "tools"]);
-    assert.equal(actionArgs("addRant", { kind: "package", ref: "p" }), undefined);
+    assert.deepEqual(actionArgs("updateRant", { kind: "build", ref: "cam/CMakeLists.txt", lib: "cam" }), ["lib", "update", "cam"]);
+    assert.deepEqual(actionArgs("updateRant", { kind: "package", ref: "cam", lib: "src/cam" }), ["lib", "update", "src/cam"]);
+    assert.deepEqual(actionArgs("addRant", { kind: "build", ref: "tools/env", lib: "tools" }), ["lib", "install", "tools"]);
+    assert.equal(actionArgs("addRant", { kind: "package", ref: "drv" }), undefined);
   });
 
   it("refuses an action that does not fit the row", () => {

@@ -62,10 +62,11 @@ async function newFromPreset(view: WorkspacesView, row?: TreeNode): Promise<void
 async function openSource(row: TreeNode): Promise<void> {
   const cli = requireCli();
   if (!cli) return;
-  const r = await runCli(cli, ["info", "node", row.ref, "--json"], row.root);
+  const type = row.nodeType ?? row.ref;
+  const r = await runCli(cli, ["info", "node", type, "--json"], row.root);
   const target = r.code === 0 ? parseSource(r.stdout, row.root) : undefined;
   if (!target) {
-    void vscode.window.showWarningMessage(`No source file known for ${row.ref}. ${firstError(r.stderr) ?? ""}`.trim());
+    void vscode.window.showWarningMessage(`No source file known for ${type}. ${firstError(r.stderr) ?? ""}`.trim());
     return;
   }
   await show(target.file, target.find);
@@ -83,7 +84,7 @@ async function show(file: string, find?: string): Promise<void> {
 
 export function registerCommands(view: WorkspacesView, refreshAll: () => Promise<void>): vscode.Disposable[] {
   // the Mesh view passes its group and node rows too, which carry the same three fields
-  const act = (action: Action) => (row?: Pick<TreeNode, "kind" | "ref" | "root">) => {
+  const act = (action: Action) => (row?: Pick<TreeNode, "kind" | "ref" | "root" | "lib">) => {
     const args = row && actionArgs(action, row);
     if (!row || !args) return;
     const cli = requireCli();
@@ -92,6 +93,12 @@ export function registerCommands(view: WorkspacesView, refreshAll: () => Promise
   return [
     vscode.commands.registerCommand("rant.refresh", refreshAll),
     vscode.commands.registerCommand("rant.new", (row?: TreeNode) => newFromPreset(view, row)),
+    vscode.commands.registerCommand("rant.buildAll", async () => {
+      const root = await pickRoot(view);
+      const cli = root && requireCli();
+      if (root && cli) runInTerminal(cli, root, ["build"]);
+    }),
+    vscode.commands.registerCommand("rant.revealGroup", (row?: TreeNode) => row && view.revealGroup(row.root, row.ref)),
     vscode.commands.registerCommand("rant.build", act("build")),
     vscode.commands.registerCommand("rant.start", act("start")),
     vscode.commands.registerCommand("rant.stop", act("stop")),

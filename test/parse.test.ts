@@ -38,6 +38,11 @@ describe("parseGroups", () => {
     const [g] = parseGroups(fixture("cli/ls-groups.json"));
     assert.equal(g?.name, "wsa/WsaGroup");
     assert.equal(g?.description, "The talker and the listener");
+    assert.deepEqual(g?.nodes, [
+      { name: "talker", type: "wsa/talker" },
+      { name: "listener", type: "wsa/listener" },
+    ]);
+    assert.deepEqual(g?.includes, []);
   });
 });
 
@@ -58,10 +63,10 @@ describe("parseNodes", () => {
     const l = parseNodes(fixture("cli/ls-nodes-group.json"));
     assert.deepEqual(l.runningGroups, ["wsa/WsaGroup"]);
     assert.deepEqual(
-      l.nodes.map((n) => [n.name, n.running, n.groups]),
+      l.nodes.map((n) => [n.name, n.type, n.running, n.groups]),
       [
-        ["talker", true, ["wsa/WsaGroup"]],
-        ["listener", true, ["wsa/WsaGroup"]],
+        ["talker", "wsa/talker", true, ["wsa/WsaGroup"]],
+        ["listener", "wsa/listener", true, ["wsa/WsaGroup"]],
       ],
     );
   });
@@ -86,8 +91,8 @@ describe("parseNodes", () => {
   it("names a group run twice once", () => {
     const raw = JSON.stringify({
       groups: [
-        { group: "Nav target=red", nodes: [{ name: "a" }] },
-        { group: "Nav target=blue", nodes: [{ name: "b" }] },
+        { group: "Nav target=red", nodes: [{ name: "a", type: "p/a" }] },
+        { group: "Nav target=blue", nodes: [{ name: "b", type: "p/b" }] },
       ],
       nodes: [],
     });
