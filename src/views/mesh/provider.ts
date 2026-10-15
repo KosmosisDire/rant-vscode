@@ -4,7 +4,7 @@ import type { MeshEntity, Peer } from "rant-client";
 
 import type { Bridge } from "../../bridge/connection.ts";
 import type { WorkspacesView } from "../workspaces/provider.ts";
-import { buildMesh, builtIn, nest } from "./tree.ts";
+import { buildMesh, builtIn, meshCounts, nest } from "./tree.ts";
 import type { MeshItem } from "./tree.ts";
 
 const POLL_MS = 1000;
@@ -97,7 +97,7 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
     if (n.kind !== "node" || !n.peer || !this.bridge.node) return [];
     // a node's own entities are read when it is opened
     const list = await this.bridge.node.reflection.entities(n.peer.id).catch(() => []);
-    return nest(list.filter((e) => e.provides && !builtIn(e.name)), n.id);
+    return nest(meshCounts(list.filter((e) => e.provides && !builtIn(e.name)), this.entities), n.id);
   }
 
   /** Reads the whole mesh again. */

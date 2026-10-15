@@ -5,7 +5,7 @@ import type { MeshEntity, Peer } from "rant-client";
 
 import { bridgeSettings, meshDomain, rantHome } from "../src/bridge/settings.ts";
 import type { NodeEntry, NodeListing } from "../src/cli/parse.ts";
-import { buildMesh, nest, rttText } from "../src/views/mesh/tree.ts";
+import { buildMesh, meshCounts, nest, rttText } from "../src/views/mesh/tree.ts";
 import type { MeshItem } from "../src/views/mesh/tree.ts";
 
 describe("bridgeSettings", () => {
@@ -116,6 +116,18 @@ describe("buildMesh", () => {
   it("shows every kind of entity in one tree and leaves out Rant's own", () => {
     const tree = buildMesh([], [entity("topic", "cage/gp12/joints"), entity("variable", "cage/gp12/isHome"), entity("topic", "@rant/log/info")], []);
     assert.deepEqual(labels(tree), [["Nodes", []], ["Entities", [["cage/", [["gp12/", ["isHome", "joints"]]]]]]]);
+  });
+});
+
+describe("meshCounts", () => {
+  it("counts every publisher and subscriber of a node's own entity, not just the node's side", () => {
+    const own = { ...entity("topic", "Pose"), providers: 1, consumers: 0 };
+    const mesh = [{ ...entity("topic", "Pose"), providers: 1, consumers: 2 }, entity("variable", "Pose")];
+    const lonely = entity("task", "home");
+    assert.deepEqual(
+      meshCounts([own, lonely], mesh).map((e) => [e.kind, e.name, e.consumers]),
+      [["topic", "Pose", 2], ["task", "home", 2]],
+    );
   });
 });
 

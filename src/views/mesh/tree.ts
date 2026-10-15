@@ -63,6 +63,12 @@ interface Dir {
 }
 
 /** Entities as a tree split on `/`, one segment a level, folders first, the way the explorer shows them. */
+/** A node's own entities count only its own side, so each takes the mesh's row of the same entity when there is one. */
+export function meshCounts(own: MeshEntity[], mesh: MeshEntity[]): MeshEntity[] {
+  const byName = new Map(mesh.map((e) => [`${e.kind} ${e.name}`, e]));
+  return own.map((e) => byName.get(`${e.kind} ${e.name}`) ?? e);
+}
+
 export function nest(entities: MeshEntity[], scope: string): MeshItem[] {
   const root: Dir = { dirs: new Map(), leaves: [] };
   for (const e of entities) {
