@@ -1,19 +1,19 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { parseGroups, parseNodes, parsePackages, parseStartedNames } from "../src/cli/parse.ts";
+import { parseGroups, parseNodes, parsePackages } from "../src/cli/parse.ts";
 import { actionArgs, newArgs, validName } from "../src/views/workspaces/actions.ts";
 import { buildTree } from "../src/views/workspaces/tree.ts";
 import type { WorkspaceData } from "../src/workspaces/load.ts";
 import { fixture } from "./helpers.ts";
 
-function workspace(nodes: string, state?: string): WorkspaceData {
+function workspace(nodes: string): WorkspaceData {
   return {
     root: "C:/work/wsa",
     name: "wsa",
     packages: parsePackages(fixture("cli/ls-packages.json")),
     groups: parseGroups(fixture("cli/ls-groups.json")),
-    listing: parseNodes(fixture(nodes), state ? parseStartedNames(fixture(state)) : undefined),
+    listing: parseNodes(fixture(nodes)),
   };
 }
 
@@ -31,7 +31,7 @@ describe("buildTree", () => {
   });
 
   it("marks running nodes and groups and puts them first", () => {
-    const [ws] = buildTree([workspace("cli/ls-nodes-loose.json", "cli/state-loose.json")]);
+    const [ws] = buildTree([workspace("cli/ls-nodes-loose.json")]);
     assert.equal(ws?.running, true);
     assert.equal(ws?.description, "1 running");
     const nodes = ws?.children[1]?.children ?? [];
@@ -42,15 +42,6 @@ describe("buildTree", () => {
     assert.equal(group?.running, true);
     assert.equal(group?.description, "running, The talker and the listener");
     assert.equal(grouped?.children[1]?.children[0]?.description, "running, wsa/WsaGroup");
-  });
-
-  it("lists nodes started elsewhere apart, with no actions of the workspace's own", () => {
-    const [ws] = buildTree([workspace("cli/ls-nodes-loose.json")]);
-    assert.equal(ws?.running, false);
-    assert.deepEqual(ws?.children.map((c) => c.label), ["Packages", "Nodes", "Groups", "On the mesh"]);
-    const peer = ws?.children[3]?.children[0];
-    assert.deepEqual([peer?.kind, peer?.ref, peer?.description], ["peer", "talker", "not started here"]);
-    assert.deepEqual(ws?.children[1]?.children.map((n) => n.ref), ["wsa/listener"]);
   });
 
   it("gives every row an id that stays the same between builds", () => {

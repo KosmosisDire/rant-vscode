@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import * as path from "node:path";
 
 import { firstError, parseErrors } from "../cli/errors.ts";
@@ -6,7 +5,7 @@ import type { CliError } from "../cli/errors.ts";
 import { CliMissing, runCli } from "../cli/exec.ts";
 import type { RunResult } from "../cli/exec.ts";
 import type { Cli } from "../cli/locate.ts";
-import { parseGroups, parseNodes, parsePackages, parseStartedNames } from "../cli/parse.ts";
+import { parseGroups, parseNodes, parsePackages } from "../cli/parse.ts";
 import type { GroupInfo, NodeListing, PackageInfo } from "../cli/parse.ts";
 
 export interface WorkspaceData {
@@ -29,10 +28,8 @@ async function json(cli: Cli, root: string, args: string[]): Promise<string> {
 }
 
 export async function loadNodes(cli: Cli, root: string): Promise<NodeListing> {
-  const listing = await json(cli, root, ["ls", "nodes"]);
-  // the CLI saves the state while it lists, so the file is current after the call
-  const state = await readFile(path.join(root, ".rant", "state"), "utf8").catch(() => "");
-  return parseNodes(listing, parseStartedNames(state));
+  // the mesh is the Mesh view's: here only what the workspace declares and started
+  return parseNodes(await json(cli, root, ["ls", "nodes", "--no-mesh"]));
 }
 
 /** Everything the tree shows. A config error comes back as `error`, a missing CLI is thrown. */

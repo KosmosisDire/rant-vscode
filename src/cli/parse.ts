@@ -16,14 +16,11 @@ export interface GroupInfo {
   params: string;
 }
 
-/** A node the workspace could start (name is the type, `package/node`) or one on the mesh (name is its mesh name). */
+/** A node the workspace could start (name is the type, `package/node`) or one it started (name is its mesh name). */
 export interface NodeEntry {
   name: string;
   running: boolean;
-  onMesh: boolean;
   groups: string[];
-  /** On the mesh but not started by this workspace, such as a node of another workspace. */
-  external: boolean;
   kind?: string;
 }
 
@@ -91,21 +88,8 @@ export function parseGroups(raw: string): GroupInfo[] {
   });
 }
 
-/** The names of the nodes a workspace started, from its `.rant/state` file. Empty when the file is not readable. */
-export function parseStartedNames(raw: string): Set<string> {
-  try {
-    const instances = (JSON.parse(raw) as { instances?: Array<{ name?: unknown }> }).instances ?? [];
-    return new Set(instances.flatMap((i) => (typeof i.name === "string" ? [i.name] : [])));
-  } catch {
-    return new Set();
-  }
-}
-
-/**
- * The output of `rant ls nodes --json`: running nodes under their groups or loose, then the ones
- * that could start. A loose node is the workspace's own only when `started` names it.
- */
-export function parseNodes(raw: string, started: ReadonlySet<string> = new Set()): NodeListing {
+/** The output of `rant ls nodes --no-mesh --json`: started nodes under their groups or loose, then the ones that could start. */
+export function parseNodes(raw: string): NodeListing {
   const what = "ls nodes";
   const o = object(parseJson(raw, what), what);
   const byName = new Map<string, NodeEntry>();
@@ -113,7 +97,7 @@ export function parseNodes(raw: string, started: ReadonlySet<string> = new Set()
   const running = (row: unknown, group?: string) => {
     const r = object(row, what);
     const name = text(r.name, what);
-    const entry = byName.get(name) ?? { name, running: true, onMesh: r.on_mesh === true, groups: [], external: false };
+    const entry = byName.get(name) ?? { name, running: true, groups: [] };
     if (group && !entry.groups.includes(group)) entry.groups.push(group);
     byName.set(name, entry);
   };
@@ -124,15 +108,11 @@ export function parseNodes(raw: string, started: ReadonlySet<string> = new Set()
     if (!runningGroups.includes(group)) runningGroups.push(group);
     for (const n of list(go.nodes, what)) running(n, group);
   }
-  for (const n of list(o.nodes, what)) {
-    running(n);
-    const entry = byName.get(text(object(n, what).name, what));
-    if (entry && entry.groups.length === 0) entry.external = !started.has(entry.name);
-  }
+  for (const n of list(o.nodes, what)) running(n);
   const nodes = [...byName.values()];
   for (const n of list(o.not_running ?? [], what)) {
     const r = object(n, what);
-    nodes.push({ name: text(r.name, what), running: false, onMesh: false, groups: [], external: false, kind: text(r.kind, what) });
+    nodes.push({ name: text(r.name, what), running: false, groups: [], kind: text(r.kind, what) });
   }
   return { nodes, runningGroups };
 }

@@ -4,12 +4,10 @@
       "group": "wsa/WsaGroup",
       "nodes": [
         {
-          "name": "talker",
-          "on_mesh": true
+          "name": "talker"
         },
         {
-          "name": "listener",
-          "on_mesh": true
+          "name": "listener"
         }
       ]
     }

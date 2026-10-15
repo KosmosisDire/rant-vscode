@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import * as path from "node:path";
 import { describe, it } from "node:test";
 
-import { parseGroups, parseNodes, parsePackages, parseSource, parseStartedNames } from "../src/cli/parse.ts";
+import { parseGroups, parseNodes, parsePackages, parseSource } from "../src/cli/parse.ts";
 import { fixture } from "./helpers.ts";
 
 describe("parsePackages", () => {
@@ -43,35 +43,24 @@ describe("parseNodes", () => {
     const l = parseNodes(fixture("cli/ls-nodes-group.json"));
     assert.deepEqual(l.runningGroups, ["wsa/WsaGroup"]);
     assert.deepEqual(
-      l.nodes.map((n) => [n.name, n.running, n.onMesh, n.groups]),
+      l.nodes.map((n) => [n.name, n.running, n.groups]),
       [
-        ["talker", true, true, ["wsa/WsaGroup"]],
-        ["listener", true, true, ["wsa/WsaGroup"]],
+        ["talker", true, ["wsa/WsaGroup"]],
+        ["listener", true, ["wsa/WsaGroup"]],
       ],
     );
   });
 
   it("keeps a running node outside any group, and what could still start", () => {
-    const started = parseStartedNames(fixture("cli/state-loose.json"));
-    const l = parseNodes(fixture("cli/ls-nodes-loose.json"), started);
+    const l = parseNodes(fixture("cli/ls-nodes-loose.json"));
     assert.deepEqual(l.runningGroups, []);
     assert.deepEqual(
-      l.nodes.map((n) => [n.name, n.running, n.groups, n.external]),
+      l.nodes.map((n) => [n.name, n.running, n.groups]),
       [
-        ["talker", true, [], false],
-        ["wsa/listener", false, [], false],
+        ["talker", true, []],
+        ["wsa/listener", false, []],
       ],
     );
-  });
-
-  it("marks a loose node the workspace did not start as external", () => {
-    const l = parseNodes(fixture("cli/ls-nodes-loose.json"), new Set(["other"]));
-    assert.equal(l.nodes[0]?.external, true);
-    assert.equal(parseNodes(fixture("cli/ls-nodes-loose.json")).nodes[0]?.external, true);
-  });
-
-  it("never calls a node of a group external", () => {
-    assert.equal(parseNodes(fixture("cli/ls-nodes-group.json")).nodes.some((n) => n.external), false);
   });
 
   it("reads a declared node, which has no path", () => {
@@ -82,25 +71,14 @@ describe("parseNodes", () => {
   it("names a group run twice once", () => {
     const raw = JSON.stringify({
       groups: [
-        { group: "Nav target=red", nodes: [{ name: "a", on_mesh: true }] },
-        { group: "Nav target=blue", nodes: [{ name: "b", on_mesh: false }] },
+        { group: "Nav target=red", nodes: [{ name: "a" }] },
+        { group: "Nav target=blue", nodes: [{ name: "b" }] },
       ],
       nodes: [],
     });
     const l = parseNodes(raw);
     assert.deepEqual(l.runningGroups, ["Nav"]);
-    assert.equal(l.nodes[1]?.onMesh, false);
-  });
-});
-
-describe("parseStartedNames", () => {
-  it("reads the instance names of the state file", () => {
-    assert.deepEqual([...parseStartedNames(fixture("cli/state-loose.json"))], ["talker"]);
-  });
-
-  it("is empty for a missing or broken file", () => {
-    assert.equal(parseStartedNames("").size, 0);
-    assert.equal(parseStartedNames("{}").size, 0);
+    assert.deepEqual(l.nodes.map((n) => n.groups), [["Nav"], ["Nav"]]);
   });
 });
 

@@ -2,8 +2,7 @@
   "groups": [],
   "nodes": [
     {
-      "name": "talker",
-      "on_mesh": true
+      "name": "talker"
     }
   ],
   "not_running": [

@@ -28,8 +28,6 @@ function iconOf(n: TreeNode): vscode.ThemeIcon {
       return n.running ? new vscode.ThemeIcon("layers-active", green) : new vscode.ThemeIcon("layers");
     case "node":
       return n.running ? new vscode.ThemeIcon("circle-filled", green) : new vscode.ThemeIcon("circle-outline");
-    case "peer":
-      return new vscode.ThemeIcon("broadcast");
   }
 }
 
@@ -66,7 +64,7 @@ export class WorkspacesView implements vscode.TreeDataProvider<TreeNode>, vscode
   }
 
   getTreeItem(n: TreeNode): vscode.TreeItem {
-    const open = n.kind === "workspace" || (n.kind === "section" && n.ref !== "On the mesh");
+    const open = n.kind === "workspace" || n.kind === "section";
     const item = new vscode.TreeItem(
       n.label,
       n.children.length && open ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None,

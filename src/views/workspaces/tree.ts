@@ -1,6 +1,6 @@
 import type { WorkspaceData } from "../../workspaces/load.ts";
 
-export type NodeKind = "workspace" | "section" | "package" | "node" | "group" | "peer";
+export type NodeKind = "workspace" | "section" | "package" | "node" | "group";
 
 /** One row of the Workspaces view, free of the editor so it can be tested. */
 export interface TreeNode {
@@ -44,17 +44,12 @@ function workspaceRow(w: WorkspaceData): TreeNode {
       path: p.folder,
     }),
   );
-  const own = w.listing.nodes.filter((n) => !n.external);
-  const peers = w.listing.nodes
-    .filter((n) => n.external)
-    .map((n) => row("peer", w.root, n.name, n.name, { running: true, description: "not started here", tooltip: `${n.name} runs on the mesh, started elsewhere` }))
-    .sort(byRunningThenName);
-  const nodes = own
+  const nodes = w.listing.nodes
     .map((n) =>
       row("node", w.root, n.name, n.name, {
         running: n.running,
         description: n.running ? ["running", ...n.groups].join(", ") : n.kind,
-        tooltip: n.running && !n.onMesh ? `${n.name} started, not on the mesh yet` : n.name,
+        tooltip: n.name,
       }),
     )
     .sort(byRunningThenName);
@@ -75,7 +70,7 @@ function workspaceRow(w: WorkspaceData): TreeNode {
     running: count > 0,
     description: count ? `${count} running` : undefined,
     tooltip: w.root,
-    children: [...section(w.root, "Packages", packages), ...section(w.root, "Nodes", nodes), ...section(w.root, "Groups", groups), ...section(w.root, "On the mesh", peers)],
+    children: [...section(w.root, "Packages", packages), ...section(w.root, "Nodes", nodes), ...section(w.root, "Groups", groups)],
   });
 }
 
