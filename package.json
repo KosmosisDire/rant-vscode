@@ -33,7 +33,11 @@
           "*.rant",
           "*.run"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./media/icons/file-light.svg",
+          "dark": "./media/icons/file-dark.svg"
+        }
       }
     ],
     "grammars": [
@@ -77,13 +81,18 @@
       },
       {
         "view": "rant.mesh",
-        "contents": "No Rant bridge is set up on this machine. The bridge lets the editor see the mesh.\n[Enable the Bridge](command:rant.bridge.enable)",
-        "when": "rant.bridge == missing"
+        "contents": "No Rant bridge is set up on this machine. The bridge lets the editor see the mesh.\n[Enable the Bridge](command:rant.bridge.enable)\n[Use Another Bridge](command:rant.bridge.choose)",
+        "when": "rant.bridge == missing && !rant.bridgeRemote"
       },
       {
         "view": "rant.mesh",
-        "contents": "The Rant bridge is not running.\n[Start the Bridge](command:rant.bridge.start)",
-        "when": "rant.bridge == down"
+        "contents": "The Rant bridge on this machine is not running.\n[Start the Bridge](command:rant.bridge.start)\n[Use Another Bridge](command:rant.bridge.choose)",
+        "when": "rant.bridge == down && !rant.bridgeRemote"
+      },
+      {
+        "view": "rant.mesh",
+        "contents": "The bridge in the setting rant.bridgeUrl does not answer. Retrying.\n[Choose Bridge](command:rant.bridge.choose)",
+        "when": "rant.bridge == down && rant.bridgeRemote"
       },
       {
         "view": "rant.mesh",
@@ -92,8 +101,13 @@
       },
       {
         "view": "rant.mesh",
-        "contents": "The Rant bridge refused the connection. Its passphrase is in ~/.rant/bridge.yaml.\n[Restart the Bridge](command:rant.bridge.restart)\n[Try Again](command:rant.bridge.reconnect)",
-        "when": "rant.bridge == refused"
+        "contents": "The bridge on this machine refused the connection. Its passphrase is in ~/.rant/bridge.yaml.\n[Restart the Bridge](command:rant.bridge.restart)\n[Try Again](command:rant.bridge.reconnect)",
+        "when": "rant.bridge == refused && !rant.bridgeRemote"
+      },
+      {
+        "view": "rant.mesh",
+        "contents": "The bridge refused the passphrase.\n[Enter Passphrase](command:rant.bridge.passphrase)\n[Choose Bridge](command:rant.bridge.choose)",
+        "when": "rant.bridge == refused && rant.bridgeRemote"
       },
       {
         "view": "rant.mesh",
@@ -191,6 +205,17 @@
         "command": "rant.bridge.reconnect",
         "title": "Reconnect to Bridge",
         "category": "Rant"
+      },
+      {
+        "command": "rant.bridge.choose",
+        "title": "Choose Bridge",
+        "category": "Rant",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "rant.bridge.passphrase",
+        "title": "Enter Bridge Passphrase",
+        "category": "Rant"
       }
     ],
     "menus": {
@@ -236,19 +261,24 @@
           "group": "navigation@2"
         },
         {
-          "command": "rant.mesh.domain",
+          "command": "rant.bridge.choose",
           "when": "view == rant.mesh",
           "group": "navigation@1"
         },
         {
-          "command": "rant.mesh.logs",
+          "command": "rant.mesh.domain",
           "when": "view == rant.mesh",
           "group": "navigation@2"
         },
         {
-          "command": "rant.mesh.refresh",
+          "command": "rant.mesh.logs",
           "when": "view == rant.mesh",
           "group": "navigation@3"
+        },
+        {
+          "command": "rant.mesh.refresh",
+          "when": "view == rant.mesh",
+          "group": "navigation@4"
         }
       ],
       "view/item/context": [
@@ -306,6 +336,26 @@
           "command": "rant.refresh",
           "when": "view == rant.workspaces && viewItem =~ /^workspace/",
           "group": "4_refresh@1"
+        },
+        {
+          "command": "rant.restart",
+          "when": "view == rant.mesh && viewItem =~ /^(node|group)\\.running/",
+          "group": "inline@1"
+        },
+        {
+          "command": "rant.stop",
+          "when": "view == rant.mesh && viewItem =~ /^(node|group)\\.running/",
+          "group": "inline@2"
+        },
+        {
+          "command": "rant.restart",
+          "when": "view == rant.mesh && viewItem =~ /^(node|group)\\.running/",
+          "group": "1_run@1"
+        },
+        {
+          "command": "rant.stop",
+          "when": "view == rant.mesh && viewItem =~ /^(node|group)\\.running/",
+          "group": "1_run@2"
         }
       ]
     },
@@ -326,6 +376,11 @@
           "minimum": 0,
           "maximum": 65535,
           "markdownDescription": "The Rant domain the Mesh view explores. Empty uses `RANT_DOMAIN`, else 0."
+        },
+        "rant.bridgeUrl": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "The bridge the Mesh view connects to, such as `ws://192.168.1.20:7480` or `wss://bridge.example.com`. Empty uses the bridge on this machine, read from `~/.rant/bridge.yaml`. The passphrase of another bridge is asked for once and kept in the editor's secret storage."
         }
       }
     }

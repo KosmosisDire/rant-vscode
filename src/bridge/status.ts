@@ -28,6 +28,7 @@ export class BridgeStatus implements vscode.Disposable {
   private update(): void {
     const b = this.bridge;
     void vscode.commands.executeCommand("setContext", "rant.bridge", b.state);
+    void vscode.commands.executeCommand("setContext", "rant.bridgeRemote", !!b.remote);
     const domain = b.state === "open" ? ` ${b.domain}` : "";
     this.item.text = TEXT[b.state] + domain;
     this.item.tooltip = `Rant bridge: ${b.state}${b.detail ? `\n${b.detail}` : ""}`;

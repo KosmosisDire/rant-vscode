@@ -16,8 +16,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const registry = new Registry();
   const view = new WorkspacesView(registry);
   const diagnostics = new RantDiagnostics();
-  const bridge = new Bridge(vscode.window.createOutputChannel("Rant Bridge", { log: true }));
-  const mesh = new MeshView(bridge);
+  const bridge = new Bridge(vscode.window.createOutputChannel("Rant Bridge", { log: true }), context.secrets);
+  const mesh = new MeshView(bridge, view, context.extensionUri);
   const refreshAll = async () => {
     // a changed set of workspaces reloads the view through onDidChangeRoots
     if (!(await registry.rediscover())) await view.reload();
@@ -50,7 +50,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.workspace.onDidSaveTextDocument(checkDocument),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("rant.cliPath")) void refreshAll();
-      if (e.affectsConfiguration("rant.domain")) void bridge.reconnect();
+      if (e.affectsConfiguration("rant.domain") || e.affectsConfiguration("rant.bridgeUrl")) void bridge.reconnect();
     }),
     onCommandDone((root) => void view.reloadNodes(root)),
   );

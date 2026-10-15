@@ -46,6 +46,7 @@ export class WorkspacesView implements vscode.TreeDataProvider<TreeNode>, vscode
   private tree: TreeNode[] = [];
   private timer: NodeJS.Timeout | undefined;
   private polling = false;
+  private watchers = 0;
   readonly view: vscode.TreeView<TreeNode>;
   private readonly disposables: vscode.Disposable[] = [this.changed];
 
@@ -56,11 +57,11 @@ export class WorkspacesView implements vscode.TreeDataProvider<TreeNode>, vscode
     this.view = vscode.window.createTreeView("rant.workspaces", { treeDataProvider: this });
     this.disposables.push(
       this.view,
-      this.view.onDidChangeVisibility((e) => (e.visible ? this.startPolling() : this.stopPolling())),
+      this.view.onDidChangeVisibility(() => this.pollWhenNeeded()),
       registry.onDidChangeConfig((root) => void this.reload([root])),
       registry.onDidChangeState((root) => void this.reloadNodes(root)),
     );
-    if (this.view.visible) this.startPolling();
+    this.pollWhenNeeded();
   }
 
   getTreeItem(n: TreeNode): vscode.TreeItem {
@@ -82,6 +83,30 @@ export class WorkspacesView implements vscode.TreeDataProvider<TreeNode>, vscode
   }
 
   /** The workspace roots the view shows. */
+  /** What each readable workspace started, for the Mesh view. */
+  started(): Pick<WorkspaceData, "root" | "name" | "listing">[] {
+    return this.registry.roots.flatMap((r) => {
+      const d = this.data.get(pathKey(r));
+      return d && !d.error ? [{ root: d.root, name: d.name, listing: d.listing }] : [];
+    });
+  }
+
+  /** Keeps what runs current while the returned disposable lives, even with this view hidden. */
+  watch(): vscode.Disposable {
+    this.watchers++;
+    this.pollWhenNeeded();
+    return new vscode.Disposable(() => {
+      this.watchers--;
+      this.pollWhenNeeded();
+    });
+  }
+
+  private pollWhenNeeded(): void {
+    if (this.view.visible || this.watchers > 0) {
+      if (!this.timer) this.startPolling();
+    } else this.stopPolling();
+  }
+
   get roots(): string[] {
     return this.registry.roots;
   }

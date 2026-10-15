@@ -31,6 +31,30 @@ async function bridgeCommand(bridge: Bridge, verb: "enable" | "start" | "restart
   await bridge.reconnect();
 }
 
+/** Asks for the passphrase of the bridge the setting names and keeps it in secret storage. */
+async function askPassphrase(bridge: Bridge, url: string): Promise<boolean> {
+  const passphrase = await vscode.window.showInputBox({ prompt: `Passphrase of the bridge at ${url}`, password: true, ignoreFocusOut: true });
+  if (passphrase === undefined) return false;
+  await bridge.setPassphrase(url, passphrase);
+  return true;
+}
+
+/** Points the Mesh view at a bridge: a URL, or empty for the one on this machine. */
+async function chooseBridge(bridge: Bridge): Promise<void> {
+  const url = await vscode.window.showInputBox({
+    prompt: "The bridge to connect to, such as ws://192.168.1.20:7480 or wss://bridge.example.com. Empty uses the one on this machine.",
+    value: bridge.remote,
+    ignoreFocusOut: true,
+    validateInput: (v) => (v.trim() === "" || /^wss?:\/\/\S+$/.test(v.trim()) ? undefined : "A ws:// or wss:// URL, or empty"),
+  });
+  if (url === undefined) return;
+  const next = url.trim();
+  // the passphrase is stored first, so the reconnect the setting causes already has it
+  if (next && !(await askPassphrase(bridge, next))) return;
+  if (next === bridge.remote) await bridge.reconnect();
+  else await vscode.workspace.getConfiguration("rant").update("bridgeUrl", next || undefined, vscode.ConfigurationTarget.Global);
+}
+
 /** The other nodes' log lines in an output channel, from the first time they are asked for. */
 class MeshLogs implements vscode.Disposable {
   private readonly channel = vscode.window.createOutputChannel("Rant Mesh Logs");
@@ -92,5 +116,13 @@ export function registerMeshCommands(bridge: Bridge, view: MeshView, extension: 
     vscode.commands.registerCommand("rant.bridge.start", () => bridgeCommand(bridge, "start", "Starting the Rant bridge")),
     vscode.commands.registerCommand("rant.bridge.restart", () => bridgeCommand(bridge, "restart", "Restarting the Rant bridge")),
     vscode.commands.registerCommand("rant.bridge.reconnect", () => bridge.reconnect()),
+    vscode.commands.registerCommand("rant.bridge.choose", () => chooseBridge(bridge)),
+    vscode.commands.registerCommand("rant.bridge.passphrase", async () => {
+      if (!bridge.remote) {
+        void vscode.window.showInformationMessage("The bridge on this machine is read from ~/.rant/bridge.yaml. Choose a bridge to use another one.");
+        return;
+      }
+      if (await askPassphrase(bridge, bridge.remote)) await bridge.reconnect();
+    }),
   ];
 }

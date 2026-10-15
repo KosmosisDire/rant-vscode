@@ -3,31 +3,16 @@ import * as vscode from "vscode";
 import type { MeshEntity, Peer } from "rant-client";
 
 import type { Bridge } from "../../bridge/connection.ts";
+import type { WorkspacesView } from "../workspaces/provider.ts";
 import { buildMesh, builtIn, nest } from "./tree.ts";
 import type { MeshItem } from "./tree.ts";
 
 const POLL_MS = 1000;
 
-const ICONS: Record<string, string> = { topic: "symbol-event", variable: "symbol-variable", function: "symbol-method", task: "tasklist" };
-
-function iconOf(n: MeshItem): vscode.ThemeIcon {
-  switch (n.kind) {
-    case "section":
-    case "folder":
-      return new vscode.ThemeIcon("folder");
-    case "peer":
-      return n.peer.active
-        ? new vscode.ThemeIcon("vm-running", new vscode.ThemeColor(n.peer.missed > 1 ? "list.warningForeground" : "testing.iconPassed"))
-        : new vscode.ThemeIcon("vm-outline");
-    case "entity":
-      return new vscode.ThemeIcon(ICONS[n.entity.kind] ?? "circle-outline");
-  }
-}
-
 // what the rows show, so the tree is redrawn only when that changes
 const shown = (t: MeshItem[]) => JSON.stringify(t, (k, v: unknown) => (k === "peer" || k === "entity" ? undefined : v));
 
-/** The Mesh view: the nodes and entities the bridge's node sees, read again when the mesh moves. */
+/** The Mesh view: the nodes by group and the entities as one tree, read again when the mesh moves. */
 export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<MeshItem | void>();
   readonly onDidChangeTreeData = this.changed.event;
@@ -37,13 +22,17 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
   private entities: MeshEntity[] = [];
   private timer: NodeJS.Timeout | undefined;
   private polling = false;
-  private hold: vscode.Disposable | undefined;
+  private holds: vscode.Disposable[] = [];
   private readonly view: vscode.TreeView<MeshItem>;
   private readonly bridge: Bridge;
+  private readonly workspaces: WorkspacesView;
+  private readonly icons: vscode.Uri;
   private readonly disposables: vscode.Disposable[] = [this.changed];
 
-  constructor(bridge: Bridge) {
+  constructor(bridge: Bridge, workspaces: WorkspacesView, extension: vscode.Uri) {
     this.bridge = bridge;
+    this.workspaces = workspaces;
+    this.icons = vscode.Uri.joinPath(extension, "media", "icons");
     this.view = vscode.window.createTreeView("rant.mesh", { treeDataProvider: this });
     this.disposables.push(
       this.view,
@@ -53,30 +42,57 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
         if (bridge.state !== "open") this.clear();
         void this.poll();
       }),
+      // which nodes run under which group comes from the workspaces
+      workspaces.onDidChangeTreeData(() => this.rebuild()),
     );
     if (this.view.visible) this.show();
   }
 
+  /** The explorer's icon for a row, in its colors. */
+  private icon(name: string): { light: vscode.Uri; dark: vscode.Uri } {
+    return { light: vscode.Uri.joinPath(this.icons, `${name}-light.svg`), dark: vscode.Uri.joinPath(this.icons, `${name}-dark.svg`) };
+  }
+
   getTreeItem(n: MeshItem): vscode.TreeItem {
-    const folds = n.kind !== "entity";
+    const open = n.kind === "section" || n.kind === "group";
+    const folds = n.kind !== "entity" && !(n.kind === "node" && !n.peer);
     const item = new vscode.TreeItem(
       n.label,
-      !folds ? vscode.TreeItemCollapsibleState.None
-        : n.kind === "section" ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
+      !folds ? vscode.TreeItemCollapsibleState.None : open ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed,
     );
     item.id = n.id;
-    item.iconPath = iconOf(n);
-    item.contextValue = n.kind === "entity" ? `entity.${n.entity.kind}` : n.kind;
-    if (n.kind !== "section") item.description = n.description;
-    if (n.kind === "peer" || n.kind === "entity") item.tooltip = n.tooltip;
-    if (n.kind === "entity") item.command = { command: "rant.mesh.open", title: "Open", arguments: [n] };
+    switch (n.kind) {
+      case "section":
+        item.iconPath = this.icon(n.id);
+        break;
+      case "folder":
+        break;
+      case "group":
+        item.iconPath = new vscode.ThemeIcon("layers");
+        item.contextValue = "group.running";
+        break;
+      case "node":
+        item.iconPath = this.icon(n.state === "up" ? "node-up" : "node-joining");
+        // only a node a workspace started can be stopped or restarted from here
+        item.contextValue = n.root ? "node.running" : "peer";
+        break;
+      case "entity":
+        item.iconPath = this.icon(n.entity.kind);
+        item.contextValue = `entity.${n.entity.kind}`;
+        item.command = { command: "rant.mesh.open", title: "Open", arguments: [n] };
+        break;
+    }
+    if (n.kind !== "section" && n.kind !== "folder") {
+      item.description = n.description;
+      item.tooltip = n.tooltip;
+    }
     return item;
   }
 
   async getChildren(n?: MeshItem): Promise<MeshItem[]> {
     if (!n) return this.tree;
-    if (n.kind === "section" || n.kind === "folder") return n.children;
-    if (n.kind !== "peer" || !this.bridge.node) return [];
+    if (n.kind === "section" || n.kind === "folder" || n.kind === "group") return n.children;
+    if (n.kind !== "node" || !n.peer || !this.bridge.node) return [];
     // a node's own entities are read when it is opened
     const list = await this.bridge.node.reflection.entities(n.peer.id).catch(() => []);
     return nest(list.filter((e) => e.provides && !builtIn(e.name)), n.id);
@@ -89,7 +105,7 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
   }
 
   private show(): void {
-    this.hold ??= this.bridge.want();
+    if (!this.holds.length) this.holds = [this.bridge.want(), this.workspaces.watch()];
     clearInterval(this.timer);
     this.timer = setInterval(() => void this.poll(), POLL_MS);
     void this.poll();
@@ -98,8 +114,8 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
   private hide(): void {
     clearInterval(this.timer);
     this.timer = undefined;
-    this.hold?.dispose();
-    this.hold = undefined;
+    for (const h of this.holds) h.dispose();
+    this.holds = [];
   }
 
   private clear(): void {
@@ -111,6 +127,14 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
     }
   }
 
+  private rebuild(): void {
+    if (this.bridge.state !== "open") return;
+    const tree = buildMesh(this.peers, this.entities, this.workspaces.started());
+    if (shown(tree) === shown(this.tree) && this.tree.length) return;
+    this.tree = tree;
+    this.changed.fire();
+  }
+
   private async poll(): Promise<void> {
     const node = this.bridge.node;
     if (this.polling || !node || this.bridge.state !== "open") return;
@@ -118,17 +142,10 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
     try {
       const r = node.reflection;
       const [epoch, peers] = await Promise.all([r.epoch(), r.peers()]);
-      let entities = this.entities;
-      if (epoch !== this.epoch) entities = await r.mesh();
+      if (epoch !== this.epoch) this.entities = await r.mesh();
       this.epoch = epoch;
-      const before = shown(buildMesh(this.peers, this.entities));
       this.peers = peers;
-      this.entities = entities;
-      const tree = buildMesh(peers, entities);
-      if (shown(tree) !== before || !this.tree.length) {
-        this.tree = tree;
-        this.changed.fire();
-      }
+      this.rebuild();
     } catch {
       // a dropped connection shows through the bridge state, the next poll tries again
     } finally {

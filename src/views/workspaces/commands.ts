@@ -83,7 +83,8 @@ async function show(file: string, find?: string): Promise<void> {
 }
 
 export function registerCommands(view: WorkspacesView, refreshAll: () => Promise<void>): vscode.Disposable[] {
-  const act = (action: Action) => (row?: TreeNode) => {
+  // the Mesh view passes its group and node rows too, which carry the same three fields
+  const act = (action: Action) => (row?: Pick<TreeNode, "kind" | "ref" | "root">) => {
     const args = row && actionArgs(action, row);
     if (!row || !args) return;
     const cli = requireCli();
