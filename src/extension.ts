@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 
 import { Bridge } from "./bridge/connection.ts";
 import { BridgeStatus } from "./bridge/status.ts";
-import { RantCompletion } from "./language/completion.ts";
+import { RantCompletion, TRIGGERS } from "./language/completion.ts";
 import { RantDiagnostics } from "./language/diagnostics.ts";
 import { LANGUAGE_IDS } from "./language/vocabulary.ts";
 import { onCommandDone } from "./terminal.ts";
@@ -41,7 +41,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     new BridgeStatus(bridge),
     ...registerMeshCommands(bridge, mesh, context.extensionUri),
     bridge,
-    vscode.languages.registerCompletionItemProvider(LANGUAGE_IDS.map((language) => ({ language })), new RantCompletion(), ".", "="),
+    vscode.languages.registerCompletionItemProvider(LANGUAGE_IDS.map((language) => ({ language })), new RantCompletion((f) => view.dataFor(f)), ...TRIGGERS),
     registry.onDidChangeRoots((roots) => {
       void view.reload();
       roots.forEach((r) => diagnostics.schedule(r));

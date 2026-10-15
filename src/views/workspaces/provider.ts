@@ -114,6 +114,12 @@ export class WorkspacesView implements vscode.TreeDataProvider<TreeNode>, vscode
     return undefined;
   }
 
+  /** What the CLI last read of the workspace holding a file. */
+  dataFor(file: string): WorkspaceData | undefined {
+    const root = this.registry.rootOf(file);
+    return root ? this.data.get(pathKey(root)) : undefined;
+  }
+
   /** What each readable workspace started, for the Mesh view. */
   started(): Pick<WorkspaceData, "root" | "name" | "listing">[] {
     return this.registry.roots.flatMap((r) => {

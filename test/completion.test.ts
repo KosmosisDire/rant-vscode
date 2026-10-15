@@ -4,11 +4,15 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
-import { blockAt, suggest } from "../src/language/context.ts";
+import { parseGroups, parseNodes, parsePackages, parseUses } from "../src/cli/parse.ts";
+import { blockAt, knownFrom, suggest } from "../src/language/context.ts";
+import type { Known } from "../src/language/context.ts";
 import { FILE_SCOPES, fileKindOf } from "../src/language/vocabulary.ts";
 import type { FileKind } from "../src/language/vocabulary.ts";
+import type { WorkspaceData } from "../src/workspaces/load.ts";
+import { fixture } from "./helpers.ts";
 
-const labels = (kind: FileKind, text: string): string[] => suggest(kind, text, text.length).map((s) => s.label);
+const labels = (kind: FileKind, text: string, known?: Known): string[] => suggest(kind, text, text.length, known).map((s) => s.label);
 
 describe("fileKindOf", () => {
   it("tells the three file kinds apart", () => {
@@ -68,6 +72,13 @@ describe("keys inside blocks", () => {
     assert.deepEqual(labels("package", group("  ", 'node "tool"')), ["run"]);
   });
 
+  it("leaves out keys the block sets already, written before or after the cursor", () => {
+    const text = 'node "n" {\n  name = "a"\n  ';
+    const after = '\n  args = "-v"\n  env = { A = "1" }\n}\n';
+    assert.deepEqual(suggest("group", text + after, text.length).map((s) => s.label), ["domain", "prefix", "node_prefix"]);
+    assert.deepEqual(labels("workspace", 'domain = 3\nlogs = "l"\n'), ["ignore", "prefix", "node_prefix"]);
+  });
+
   it("goes back to the top after the block closes", () => {
     assert.equal(labels("group", 'param "a" {\n}\n').includes("param"), true);
   });
@@ -78,6 +89,60 @@ describe("keys inside blocks", () => {
     assert.deepEqual(labels("group", 'description = "so'), []);
     assert.deepEqual(labels("group", "# a comment "), []);
     assert.deepEqual(labels("group", "description = <<EOF\ntext\n"), []);
+    const comment = "# a comment\n";
+    assert.deepEqual(suggest("group", comment, comment.length - 1).map((s) => s.label), []);
+  });
+});
+
+describe("names from the workspace", () => {
+  const known: Known = {
+    nodes: [{ name: "talker", doc: "" }, { name: "cam/camera", doc: "" }],
+    groups: [{ name: "ArmGroup", doc: "", params: ["speed", "side"] }],
+    packages: [{ name: "cam", doc: "" }],
+  };
+
+  it("offers node types in a group's node label and groups in an include label", () => {
+    assert.deepEqual(labels("group", 'node "', known), ["talker", "cam/camera"]);
+    assert.deepEqual(labels("group", 'node "ca', known), ["talker", "cam/camera"]);
+    assert.deepEqual(labels("group", 'include "', known), ["ArmGroup"]);
+    assert.deepEqual(labels("package", 'node "', known), []);
+    assert.deepEqual(labels("group", 'node "a" {\n  name = "', known), []);
+  });
+
+  it("offers packages in a depend list and an included group's params to expose", () => {
+    assert.deepEqual(labels("package", 'depend = ["', known), ["cam"]);
+    assert.deepEqual(labels("package", 'depend = ["cam", "', known), ["cam"]);
+    assert.deepEqual(labels("package", 'depend = ["cam"', known), []);
+    assert.deepEqual(labels("group", 'include "ArmGroup" {\n  expose = ["', known), ["speed", "side"]);
+  });
+
+  it("offers an included group's params as keys of its include", () => {
+    assert.deepEqual(labels("group", 'include "ArmGroup" {\n  speed = 2\n  ', known), ["expose", "domain", "prefix", "node_prefix", "side"]);
+  });
+
+  it("leaves a block's label empty and opens the list there when names are known", () => {
+    const node = suggest("group", "", 0, known).find((s) => s.label === "node");
+    assert.deepEqual([node?.insert, node?.more], ['node "$1" {\n\t$0\n}', true]);
+    const param = suggest("group", "", 0, known).find((s) => s.label === "param");
+    assert.deepEqual([param?.insert, param?.more], ['param "${1:param name}" {\n\t$0\n}', false]);
+  });
+
+  it("names what sits in the file's own package bare and skips the file's own group", () => {
+    const w: WorkspaceData = {
+      root: "C:/work/wsa",
+      name: "wsa",
+      packages: parsePackages(fixture("cli/ls-packages.json")),
+      groups: [
+        ...parseGroups(fixture("cli/ls-groups.json")),
+        { name: "Other", file: "C:/work/Other.run", description: "", params: "speed=1 target=?", includes: [], nodes: [] },
+      ],
+      uses: parseUses(fixture("cli/lib.json")),
+      listing: parseNodes(fixture("cli/ls-nodes-loose.json")),
+    };
+    const k = knownFrom(w, "C:/work/wsa/WsaGroup.run");
+    assert.deepEqual(k.nodes.map((n) => n.name), ["listener"]);
+    assert.deepEqual(k.groups.map((g) => [g.name, g.params]), [["Other", ["speed", "target"]]]);
+    assert.deepEqual(k.packages, []);
   });
 });
 

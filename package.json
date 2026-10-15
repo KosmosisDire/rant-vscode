@@ -21,6 +21,17 @@
     "workspaceContains:**/workspace.rant"
   ],
   "contributes": {
+    "configurationDefaults": {
+      "[rant][rant-group]": {
+        "editor.suggest.selectionMode": "whenQuickSuggestion",
+        "editor.quickSuggestions": {
+          "other": "on",
+          "comments": "off",
+          "strings": "on"
+        },
+        "editor.wordBasedSuggestions": "off"
+      }
+    },
     "languages": [
       {
         "id": "rant",
