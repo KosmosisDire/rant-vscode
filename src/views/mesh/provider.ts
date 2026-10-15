@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 import type { MeshEntity, Peer } from "rant-client";
 
 import type { Bridge } from "../../bridge/connection.ts";
-import { buildMesh, builtIn, entityItem } from "./tree.ts";
+import { buildMesh, builtIn, nest } from "./tree.ts";
 import type { MeshItem } from "./tree.ts";
 
 const POLL_MS = 1000;
@@ -13,6 +13,7 @@ const ICONS: Record<string, string> = { topic: "symbol-event", variable: "symbol
 function iconOf(n: MeshItem): vscode.ThemeIcon {
   switch (n.kind) {
     case "section":
+    case "folder":
       return new vscode.ThemeIcon("folder");
     case "peer":
       return n.peer.active
@@ -57,7 +58,7 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
   }
 
   getTreeItem(n: MeshItem): vscode.TreeItem {
-    const folds = n.kind === "section" || n.kind === "peer";
+    const folds = n.kind !== "entity";
     const item = new vscode.TreeItem(
       n.label,
       !folds ? vscode.TreeItemCollapsibleState.None
@@ -66,21 +67,19 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
     item.id = n.id;
     item.iconPath = iconOf(n);
     item.contextValue = n.kind === "entity" ? `entity.${n.entity.kind}` : n.kind;
-    if (n.kind !== "section") {
-      item.description = n.description;
-      item.tooltip = n.tooltip;
-    }
+    if (n.kind !== "section") item.description = n.description;
+    if (n.kind === "peer" || n.kind === "entity") item.tooltip = n.tooltip;
     if (n.kind === "entity") item.command = { command: "rant.mesh.open", title: "Open", arguments: [n] };
     return item;
   }
 
   async getChildren(n?: MeshItem): Promise<MeshItem[]> {
     if (!n) return this.tree;
-    if (n.kind === "section") return n.children;
+    if (n.kind === "section" || n.kind === "folder") return n.children;
     if (n.kind !== "peer" || !this.bridge.node) return [];
     // a node's own entities are read when it is opened
     const list = await this.bridge.node.reflection.entities(n.peer.id).catch(() => []);
-    return list.filter((e) => e.provides && !builtIn(e)).map((e) => entityItem(e, n.id));
+    return nest(list.filter((e) => e.provides && !builtIn(e.name)), n.id);
   }
 
   /** Reads the whole mesh again. */

@@ -5,7 +5,7 @@ import type { MeshEntity, Peer } from "rant-client";
 
 import { bridgeSettings, meshDomain, rantHome } from "../src/bridge/settings.ts";
 import { rttText, show, template } from "../src/views/mesh/format.ts";
-import { buildMesh } from "../src/views/mesh/tree.ts";
+import { buildMesh, nest } from "../src/views/mesh/tree.ts";
 
 describe("bridgeSettings", () => {
   it("builds the url from the port and bind", () => {
@@ -118,5 +118,40 @@ describe("buildMesh", () => {
     const [nodes] = buildMesh([peer(1, "arm"), { ...peer(2, "slow"), missed: 3 }], []);
     assert.ok(nodes?.kind === "section");
     assert.deepEqual(nodes.children.map((c) => (c.kind === "peer" ? c.description : "")), ["0.8 ms", "missed 3"]);
+  });
+  it("hides Rant's own nodes, such as the CLI", () => {
+    const [nodes] = buildMesh([peer(1, "arm"), peer(2, "@rant/cli")], []);
+    assert.ok(nodes?.kind === "section");
+    assert.deepEqual(nodes.children.map((c) => c.label), ["arm"]);
+  });
+
+  it("shows no round trip before one is measured", () => {
+    const [nodes] = buildMesh([{ ...peer(1, "arm"), rtt: { us: 292, jitterUs: 0, samples: 0, atUs: 0 } }], []);
+    assert.ok(nodes?.kind === "section");
+    assert.equal(nodes.children[0]?.kind === "peer" ? nodes.children[0].description : "?", "");
+  });
+});
+
+describe("nest", () => {
+  const labels = (items: ReturnType<typeof nest>): unknown[] =>
+    items.map((i) => (i.kind === "folder" ? [i.label, i.description, labels(i.children)] : i.label));
+
+  it("splits names on slashes, folders first, merging a folder that holds only a folder", () => {
+    const tree = nest(
+      [entity("variable", "cage/gp12/var/named/180PICK"), entity("variable", "cage/gp12/var/named/90DROPPOS"),
+       entity("variable", "cage/gp12/isHome"), entity("variable", "cage/gp12/robotState"), entity("variable", "solo")],
+      "variable",
+    );
+    assert.deepEqual(labels(tree), [
+      ["cage/gp12", "4", [["var/named", "2", ["180PICK", "90DROPPOS"]], "isHome", "robotState"]],
+      "solo",
+    ]);
+  });
+
+  it("keeps ids apart between scopes and stable between builds", () => {
+    const ids = (items: ReturnType<typeof nest>): string[] => items.flatMap((i) => [i.id, ...(i.kind === "folder" ? ids(i.children) : [])]);
+    const list = [entity("topic", "a/b/c"), entity("topic", "a/d")];
+    assert.deepEqual(ids(nest(list, "topic")), ids(nest(list, "topic")));
+    assert.equal(new Set([...ids(nest(list, "topic")), ...ids(nest(list, "peer/1"))]).size, 8);
   });
 });
