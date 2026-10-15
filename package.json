@@ -489,7 +489,7 @@
     "typescript": "^5.9.0"
   },
   "dependencies": {
-    "rant-client": "file:../bridge-rant/client",
+    "rant-client": "https://github.com/KosmosisDire/rant-bridge/releases/download/v0.0.2/rant-client-0.0.2.tgz",
     "yaml": "^2.9.1"
   }
 }
