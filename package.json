@@ -3,7 +3,6 @@
   "displayName": "Rant",
   "description": "Rant workspaces: syntax, completion and errors for workspace.rant, package.rant and group files, and a view to build, start and stop nodes.",
   "version": "0.0.1",
-  "rantBridge": "0.1.0",
   "publisher": "kosmosisdire",
   "license": "UNLICENSED",
   "private": true,
@@ -346,7 +345,7 @@
     "typescript": "^5.9.0"
   },
   "dependencies": {
-    "rant-client": "file:../web-rant/client",
+    "rant-client": "https://github.com/KosmosisDire/rant-bridge/releases/download/v0.0.1/rant-client-0.0.1.tgz",
     "yaml": "^2.9.1"
   }
 }

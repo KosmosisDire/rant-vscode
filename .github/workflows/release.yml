@@ -15,8 +15,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          path: vscode-rant
 
       - uses: actions/setup-node@v5
         with:
@@ -24,33 +22,15 @@ jobs:
 
       - name: The tag matches the version
         if: startsWith(github.ref, 'refs/tags/')
-        run: test "v$(node -p "require('./vscode-rant/package.json').version")" = "$GITHUB_REF_NAME"
-
-      - name: The bridge release the client comes from
-        id: pin
-        run: echo "version=$(node -p "require('./vscode-rant/package.json').rantBridge")" >> "$GITHUB_OUTPUT"
-
-      # package.json takes the client from ../web-rant/client, so the bridge goes beside it
-      - uses: actions/checkout@v7
-        with:
-          repository: KosmosisDire/rant-bridge
-          ref: v${{ steps.pin.outputs.version }}
-          path: web-rant
-
-      - name: Build the client
-        working-directory: web-rant/client
-        run: |
-          npm ci
-          npm run build
+        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
 
       - name: Check, test and pack
-        working-directory: vscode-rant
         run: |
           npm ci
           npm test
           npm run package
-          mkdir -p ../out
-          mv vscode-rant-*.vsix "../out/rant-vscode-$(node -p "require('./package.json').version").vsix"
+          mkdir -p out
+          mv vscode-rant-*.vsix "out/rant-vscode-$(node -p "require('./package.json').version").vsix"
 
       - uses: actions/upload-artifact@v7
         with:
