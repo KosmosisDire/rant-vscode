@@ -66,6 +66,8 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
         item.iconPath = this.icon(n.id);
         break;
       case "folder":
+        // without one VS Code pulls the icons of leaves beside it into the arrow column
+        item.iconPath = this.icon("folder");
         break;
       case "group":
         item.iconPath = new vscode.ThemeIcon("layers");
