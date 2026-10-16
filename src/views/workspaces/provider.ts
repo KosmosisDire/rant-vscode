@@ -27,7 +27,7 @@ function iconOf(n: TreeNode): vscode.ThemeIcon {
     case "group":
       return n.running ? new vscode.ThemeIcon("layers-active", green) : new vscode.ThemeIcon("layers");
     case "include":
-      return new vscode.ThemeIcon("layers");
+      return n.running ? new vscode.ThemeIcon("layers-active", green) : new vscode.ThemeIcon("layers");
     case "node":
       return n.running ? new vscode.ThemeIcon("circle-filled", green) : new vscode.ThemeIcon("circle-outline");
     case "build":

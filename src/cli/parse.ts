@@ -49,6 +49,8 @@ export interface NodeEntry {
   kind?: string;
   /** The domain a started node joined. */
   domain?: number;
+  /** The group whose own block made a started node, which may run inside another group's run. */
+  group?: string;
 }
 
 export interface NodeListing {
@@ -150,7 +152,8 @@ export function parseNodes(raw: string): NodeListing {
   const running = (row: unknown, group?: string) => {
     const r = object(row, what);
     const name = text(r.name, what);
-    const entry = byName.get(name) ?? { name, type: text(r.type, what), running: true, groups: [], domain: count(r.domain, what) };
+    const own = r.group === undefined ? undefined : text(r.group, what);
+    const entry = byName.get(name) ?? { name, type: text(r.type, what), running: true, groups: [], domain: count(r.domain, what), group: own };
     if (group && !entry.groups.includes(group)) entry.groups.push(group);
     byName.set(name, entry);
   };

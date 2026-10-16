@@ -115,19 +115,27 @@ function workspaceRow(w: WorkspaceData): TreeNode {
   const groups = w.groups
     .map((g) => {
       const at = `${w.root}|group|${g.name}`;
+      // a group runs on its own, or inside the run of a group that includes it
+      const runs = (n: NodeEntry) => n.running && (n.groups.includes(g.name) || n.group === g.name);
       const members = g.nodes.map((m) =>
         row("node", w.root, m.name, m.name, {
           id: `${at}|node|${m.name}`,
-          running: w.listing.nodes.some((n) => n.running && n.name === m.name && n.groups.includes(g.name)),
+          running: w.listing.nodes.some((n) => runs(n) && n.name === m.name),
           nodeType: m.type,
           member: true,
           tooltip: m.type,
         }),
       );
       // an include points at the group's own row rather than nesting what it runs
-      const includes = g.includes.map((name, i) => row("include", w.root, name, name, { id: `${at}|include|${i}`, tooltip: `Go to ${name}` }));
+      const includes = g.includes.map((name, i) =>
+        row("include", w.root, name, name, {
+          id: `${at}|include|${i}`,
+          tooltip: `Go to ${name}`,
+          running: w.listing.nodes.some((n) => n.running && n.group === name && n.groups.includes(g.name)),
+        }),
+      );
       return row("group", w.root, g.name, g.name, {
-        running: w.listing.runningGroups.includes(g.name),
+        running: w.listing.runningGroups.includes(g.name) || w.listing.nodes.some((n) => n.running && n.group === g.name),
         description: g.description || g.params,
         tooltip: g.file,
         path: g.file,

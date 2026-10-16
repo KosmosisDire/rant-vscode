@@ -1,5 +1,6 @@
 import type { MeshEntity, Peer } from "rant-client";
 
+import type { NodeEntry } from "../../cli/parse.ts";
 import type { WorkspaceData } from "../../workspaces/load.ts";
 
 /** A node row: on the mesh (peer), started by a workspace (root and ref), or both. */
@@ -136,6 +137,25 @@ export function buildMesh(peers: Peer[], entities: MeshEntity[], started: Starte
       const members = here.filter((n) => n.groups.includes(g));
       if (!members.length) continue;
       const id = `group/${w.root}/${g}`;
+      // a group the run includes nests under it with its own nodes
+      const inner = new Map<string, NodeEntry[]>();
+      const own: MeshItem[] = [];
+      for (const n of members) {
+        if (n.group && n.group !== g) inner.set(n.group, [...(inner.get(n.group) ?? []), n]);
+        else own.push(nodeItem(`${id}/${n.name}`, n.name, live.get(n.name), w.root));
+      }
+      const included = [...inner].map(
+        ([name, nodes]): MeshItem => ({
+          kind: "group",
+          id: `${id}/${name}`,
+          label: name,
+          description: "",
+          tooltip: `${name}, inside ${g}`,
+          root: w.root,
+          ref: name,
+          children: nodes.map((n) => nodeItem(`${id}/${name}/${n.name}`, n.name, live.get(n.name), w.root)).sort(byName),
+        }),
+      );
       groups.push({
         kind: "group",
         id,
@@ -144,7 +164,7 @@ export function buildMesh(peers: Peer[], entities: MeshEntity[], started: Starte
         tooltip: `${g}, started by ${w.root}`,
         root: w.root,
         ref: g,
-        children: members.map((n) => nodeItem(`${id}/${n.name}`, n.name, live.get(n.name), w.root)).sort(byName),
+        children: [...own.sort(byName), ...included.sort(byName)],
       });
       members.forEach((n) => claimed.add(n.name));
     }

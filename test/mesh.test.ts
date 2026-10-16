@@ -96,6 +96,17 @@ describe("buildMesh", () => {
     assert.deepEqual([other.label, other.root], ["gp12", undefined]);
   });
 
+  it("nests a group a run includes under that run, with its own nodes", () => {
+    const l = listing({ DriveGroup: ["ft", "motors", "nac"] });
+    for (const n of l.nodes) n.group = n.name === "ft" ? "DriveGroup" : "BaseGroup";
+    const ws = { root: "C:/ws", name: "ws", listing: l };
+    const [nodes] = buildMesh(["ft", "motors", "nac"].map((n, i) => peer(i + 1, n)), [], [ws], 0);
+    assert.deepEqual(labels([nodes!]), [["Nodes", [["DriveGroup", ["ft", ["BaseGroup", ["motors", "nac"]]]]]]]);
+    const inner = nodes?.kind === "section" ? nodes.children[0] : undefined;
+    const base = inner?.kind === "group" ? inner.children[1] : undefined;
+    assert.deepEqual(base?.kind === "group" ? [base.root, base.ref] : [], ["C:/ws", "BaseGroup"]);
+  });
+
   it("leaves out what a workspace started on another domain", () => {
     const ws = { root: "C:/ws", name: "ws", listing: listing({ NavGroup: ["lidar"] }, ["camera"], 2) };
     const [nodes] = buildMesh([peer(1, "gp12")], [], [ws], 0);

@@ -69,6 +69,27 @@ describe("buildTree", () => {
     assert.ok(parents(buildTree([{ ...w, groups: [...w.groups, all] }])).has(`${w.root}|group|wsa/WsaGroup`));
   });
 
+  it("shows a group running inside the group that includes it, with its nodes", () => {
+    const w = workspace("cli/ls-nodes-idle.json");
+    const base = { name: "BaseGroup", file: "C:/work/wsa/BaseGroup.run", description: "", params: "", includes: [], nodes: [{ name: "motors", type: "wsa/motors" }] };
+    const drive = { name: "DriveGroup", file: "C:/work/wsa/DriveGroup.run", description: "", params: "", includes: ["BaseGroup"], nodes: [{ name: "ft", type: "wsa/ft" }] };
+    const listing = {
+      domain: 0,
+      runningGroups: ["DriveGroup"],
+      nodes: [
+        { name: "ft", type: "wsa/ft", running: true, groups: ["DriveGroup"], domain: 0, group: "DriveGroup" },
+        { name: "motors", type: "wsa/motors", running: true, groups: ["DriveGroup"], domain: 0, group: "BaseGroup" },
+      ],
+    };
+    const [ws] = buildTree([{ ...w, groups: [base, drive], listing }]);
+    const [baseRow, driveRow] = sectionOf(ws, "Groups");
+    assert.deepEqual([baseRow?.label, baseRow?.running, baseRow?.children[0]?.running], ["BaseGroup", true, true]);
+    assert.deepEqual(driveRow?.children.map((c) => [c.kind, c.label, c.running]), [
+      ["node", "ft", true],
+      ["include", "BaseGroup", true],
+    ]);
+  });
+
   it("opens build files and group files on a click, a node through its source", () => {
     const [ws] = buildTree([workspace("cli/ls-nodes-idle.json")]);
     const pkg = sectionOf(ws, "Packages")[0];

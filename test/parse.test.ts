@@ -88,6 +88,19 @@ describe("parseNodes", () => {
     assert.deepEqual(l.nodes.map((n) => [n.name, n.kind]), [["driver/tool", "declared"]]);
   });
 
+  it("keeps the group whose own block made a node, inside the run that started it", () => {
+    const raw = JSON.stringify({
+      domain: 0,
+      groups: [{ group: "DriveGroup", nodes: [{ name: "motors", type: "p/motors", domain: 0, group: "BaseGroup" }] }],
+      nodes: [{ name: "solo", type: "p/solo", domain: 0 }],
+    });
+    const l = parseNodes(raw);
+    assert.deepEqual(l.nodes.map((n) => [n.name, n.groups, n.group]), [
+      ["motors", ["DriveGroup"], "BaseGroup"],
+      ["solo", [], undefined],
+    ]);
+  });
+
   it("names a group run twice once", () => {
     const raw = JSON.stringify({
       groups: [
