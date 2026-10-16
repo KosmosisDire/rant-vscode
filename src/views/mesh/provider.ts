@@ -131,7 +131,7 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
 
   private rebuild(): void {
     if (this.bridge.state !== "open") return;
-    const tree = buildMesh(this.peers, this.entities, this.workspaces.started());
+    const tree = buildMesh(this.peers, this.entities, this.workspaces.started(), this.bridge.domain);
     if (shown(tree) === shown(this.tree) && this.tree.length) return;
     this.tree = tree;
     this.changed.fire();

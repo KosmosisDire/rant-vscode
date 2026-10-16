@@ -34,10 +34,21 @@ export class Bridge implements vscode.Disposable {
   private timer: NodeJS.Timeout | undefined;
   private readonly output: vscode.LogOutputChannel;
   private readonly secrets: vscode.SecretStorage;
+  private readonly workspaceDomain: () => number | undefined;
 
-  constructor(output: vscode.LogOutputChannel, secrets: vscode.SecretStorage) {
+  constructor(output: vscode.LogOutputChannel, secrets: vscode.SecretStorage, workspaceDomain: () => number | undefined) {
     this.output = output;
     this.secrets = secrets;
+    this.workspaceDomain = workspaceDomain;
+  }
+
+  private wantedDomain(): number {
+    return meshDomain(vscode.workspace.getConfiguration("rant").get<number | null>("domain", null), this.workspaceDomain(), process.env);
+  }
+
+  /** Moves to the domain the settings and the workspace now name, when that is another one. */
+  async followDomain(): Promise<void> {
+    if (this.wanted > 0 && this.wantedDomain() !== this.domain) await this.reconnect();
   }
 
   /** The bridge setting, empty for the bridge on this machine. */
@@ -99,7 +110,7 @@ export class Bridge implements vscode.Disposable {
         return;
       }
       this.url = s.url;
-      this.domain = meshDomain(vscode.workspace.getConfiguration("rant").get<number | null>("domain", null), process.env);
+      this.domain = this.wantedDomain();
       this.set("connecting", `connecting to ${s.url}`);
       const node = await RantNode.connect(s.url, {
         passphrase: s.passphrase,

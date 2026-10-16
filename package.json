@@ -464,7 +464,7 @@
           "default": null,
           "minimum": 0,
           "maximum": 65535,
-          "markdownDescription": "The Rant domain the Mesh view explores. Empty uses `RANT_DOMAIN`, else 0."
+          "markdownDescription": "The Rant domain the Mesh view explores. Empty follows the open workspace's `domain`, else `RANT_DOMAIN`, else 0."
         },
         "rant.bridgeUrl": {
           "type": "string",

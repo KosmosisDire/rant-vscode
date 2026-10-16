@@ -91,12 +91,15 @@ describe("parseNodes", () => {
   it("names a group run twice once", () => {
     const raw = JSON.stringify({
       groups: [
-        { group: "Nav target=red", nodes: [{ name: "a", type: "p/a" }] },
-        { group: "Nav target=blue", nodes: [{ name: "b", type: "p/b" }] },
+        { group: "Nav target=red", nodes: [{ name: "a", type: "p/a", domain: 3 }] },
+        { group: "Nav target=blue", nodes: [{ name: "b", type: "p/b", domain: 3 }] },
       ],
       nodes: [],
+      domain: 3,
     });
     const l = parseNodes(raw);
+    assert.equal(l.domain, 3);
+    assert.deepEqual(l.nodes.map((n) => n.domain), [3, 3]);
     assert.deepEqual(l.runningGroups, ["Nav"]);
     assert.deepEqual(l.nodes.map((n) => n.groups), [["Nav"], ["Nav"]]);
   });

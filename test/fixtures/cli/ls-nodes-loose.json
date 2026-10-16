@@ -1,9 +1,11 @@
 {
+  "domain": 0,
   "groups": [],
   "nodes": [
     {
       "name": "talker",
-      "type": "C:/work/wsa/tools/talker.py"
+      "type": "C:/work/wsa/tools/talker.py",
+      "domain": 0
     }
   ],
   "not_running": [

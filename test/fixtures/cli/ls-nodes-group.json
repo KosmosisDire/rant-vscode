@@ -1,15 +1,18 @@
 {
+  "domain": 0,
   "groups": [
     {
       "group": "wsa/WsaGroup",
       "nodes": [
         {
           "name": "talker",
-          "type": "wsa/talker"
+          "type": "wsa/talker",
+          "domain": 0
         },
         {
           "name": "listener",
-          "type": "wsa/listener"
+          "type": "wsa/listener",
+          "domain": 0
         }
       ]
     }

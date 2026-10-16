@@ -34,11 +34,13 @@ describe("bridgeSettings", () => {
 });
 
 describe("meshDomain", () => {
-  it("prefers the setting, then RANT_DOMAIN, then 0", () => {
-    assert.equal(meshDomain(150, { RANT_DOMAIN: "7" }), 150);
-    assert.equal(meshDomain(null, { RANT_DOMAIN: "7" }), 7);
-    assert.equal(meshDomain(undefined, {}), 0);
-    assert.equal(meshDomain(null, { RANT_DOMAIN: "nope" }), 0);
+  it("prefers the setting, then the workspace, then RANT_DOMAIN, then 0", () => {
+    assert.equal(meshDomain(150, 2, { RANT_DOMAIN: "7" }), 150);
+    assert.equal(meshDomain(null, 2, { RANT_DOMAIN: "7" }), 2);
+    assert.equal(meshDomain(null, 0, { RANT_DOMAIN: "7" }), 0);
+    assert.equal(meshDomain(null, undefined, { RANT_DOMAIN: "7" }), 7);
+    assert.equal(meshDomain(undefined, undefined, {}), 0);
+    assert.equal(meshDomain(null, undefined, { RANT_DOMAIN: "nope" }), 0);
   });
 });
 
@@ -55,16 +57,16 @@ const peer = (id: number, name: string): Peer => ({ id, name, address: "10.0.0.2
 const entity = (kind: MeshEntity["kind"], name: string): MeshEntity => ({
   kind, name, provides: true, consumes: false, reliable: true, providers: 1, consumers: 2, generation: "0",
 });
-const listing = (groups: Record<string, string[]>, loose: string[] = []): NodeListing => {
+const listing = (groups: Record<string, string[]>, loose: string[] = [], domain = 0): NodeListing => {
   const nodes = new Map<string, NodeEntry>();
   for (const [g, names] of Object.entries(groups))
     for (const n of names) {
-      const e: NodeEntry = nodes.get(n) ?? { name: n, type: `p/${n}`, running: true, groups: [] };
+      const e: NodeEntry = nodes.get(n) ?? { name: n, type: `p/${n}`, running: true, groups: [], domain };
       e.groups.push(g);
       nodes.set(n, e);
     }
-  for (const n of loose) nodes.set(n, { name: n, type: `p/${n}`, running: true, groups: [] });
-  return { nodes: [...nodes.values()], runningGroups: Object.keys(groups) };
+  for (const n of loose) nodes.set(n, { name: n, type: `p/${n}`, running: true, groups: [], domain });
+  return { domain, nodes: [...nodes.values()], runningGroups: Object.keys(groups) };
 };
 // a tree as labels: a row with children as [label, children], a leaf as its label
 const labels = (items: MeshItem[]): unknown[] =>
@@ -74,7 +76,7 @@ describe("buildMesh", () => {
   it("puts nodes under each running group, a shared node under both, then the rest", () => {
     const ws = { root: "C:/ws", name: "ws", listing: listing({ NavGroup: ["lidar", "odom", "planner"], PickGroup: ["lidar", "odom", "arm"] }, ["camera"]) };
     const peers = ["lidar", "odom", "planner", "arm", "camera", "gp12"].map((n, i) => peer(i + 1, n));
-    const [nodes] = buildMesh(peers, [], [ws]);
+    const [nodes] = buildMesh(peers, [], [ws], 0);
     assert.deepEqual(labels([nodes!]), [
       ["Nodes", [["NavGroup", ["lidar", "odom", "planner"]], ["PickGroup", ["arm", "lidar", "odom"]], "camera", "gp12"]],
     ]);
@@ -82,7 +84,7 @@ describe("buildMesh", () => {
 
   it("lets only what a workspace started be stopped or restarted, and shows one still joining", () => {
     const ws = { root: "C:/ws", name: "ws", listing: listing({ NavGroup: ["lidar", "planner"] }) };
-    const [nodes] = buildMesh([peer(1, "lidar"), peer(2, "gp12")], [], [ws]);
+    const [nodes] = buildMesh([peer(1, "lidar"), peer(2, "gp12")], [], [ws], 0);
     assert.ok(nodes?.kind === "section");
     const [group, other] = nodes.children;
     assert.ok(group?.kind === "group" && other?.kind === "node");
@@ -94,27 +96,35 @@ describe("buildMesh", () => {
     assert.deepEqual([other.label, other.root], ["gp12", undefined]);
   });
 
+  it("leaves out what a workspace started on another domain", () => {
+    const ws = { root: "C:/ws", name: "ws", listing: listing({ NavGroup: ["lidar"] }, ["camera"], 2) };
+    const [nodes] = buildMesh([peer(1, "gp12")], [], [ws], 0);
+    assert.deepEqual(labels([nodes!]), [["Nodes", ["gp12"]]]);
+    const [same] = buildMesh([peer(1, "lidar")], [], [ws], 2);
+    assert.deepEqual(labels([same!]), [["Nodes", [["NavGroup", ["lidar"]], "camera"]]]);
+  });
+
   it("hides tooling nodes and keeps nodes that share a name apart", () => {
-    const [nodes] = buildMesh([peer(1, "arm"), peer(2, "@rant/cli"), peer(3, "vscode"), peer(4, "explorer"), peer(5, "arm")], [], []);
+    const [nodes] = buildMesh([peer(1, "arm"), peer(2, "@rant/cli"), peer(3, "vscode"), peer(4, "explorer"), peer(5, "arm")], [], [], 0);
     assert.ok(nodes?.kind === "section");
     assert.deepEqual(nodes.children.map((c) => c.id), ["peer/1", "peer/5"]);
   });
 
   it("names a bare type by its kind", () => {
     const bare = { ...entity("variable", "delay"), schema: { name: "", hash: "", dsl: "f64", fields: [{ path: "", name: "", kind: "f64" }] } };
-    const [, entities] = buildMesh([], [bare], []);
+    const [, entities] = buildMesh([], [bare], [], 0);
     assert.ok(entities?.kind === "section" && entities.children[0]?.kind === "entity");
     assert.equal(entities.children[0].description, "f64, 2 remote");
   });
 
   it("shows no round trip before one is measured", () => {
-    const [nodes] = buildMesh([{ ...peer(1, "arm"), rtt: { us: 292, jitterUs: 0, samples: 0, atUs: 0 } }], [], []);
+    const [nodes] = buildMesh([{ ...peer(1, "arm"), rtt: { us: 292, jitterUs: 0, samples: 0, atUs: 0 } }], [], [], 0);
     assert.ok(nodes?.kind === "section");
     assert.equal(nodes.children[0]?.kind === "node" ? nodes.children[0].description : "?", "");
   });
 
   it("shows every kind of entity in one tree and leaves out Rant's own", () => {
-    const tree = buildMesh([], [entity("topic", "cage/gp12/joints"), entity("variable", "cage/gp12/isHome"), entity("topic", "@rant/log/info")], []);
+    const tree = buildMesh([], [entity("topic", "cage/gp12/joints"), entity("variable", "cage/gp12/isHome"), entity("topic", "@rant/log/info")], [], 0);
     assert.deepEqual(labels(tree), [["Nodes", []], ["Entities", [["cage/", [["gp12/", ["isHome", "joints"]]]]]]]);
   });
 });

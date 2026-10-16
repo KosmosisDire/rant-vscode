@@ -49,6 +49,10 @@ function contextOf(n: TreeNode): string {
 export class WorkspacesView implements vscode.TreeDataProvider<TreeNode>, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.changed.event;
+  private readonly domainChanged = new vscode.EventEmitter<void>();
+  /** The domain the first readable workspace is on changed. */
+  readonly onDidChangeDomain = this.domainChanged.event;
+  private lastDomain: number | undefined;
   private readonly data = new Map<string, WorkspaceData>();
   private readonly loads = new Map<string, number>();
   private tree: TreeNode[] = [];
@@ -57,7 +61,7 @@ export class WorkspacesView implements vscode.TreeDataProvider<TreeNode>, vscode
   private polling = false;
   private watchers = 0;
   readonly view: vscode.TreeView<TreeNode>;
-  private readonly disposables: vscode.Disposable[] = [this.changed];
+  private readonly disposables: vscode.Disposable[] = [this.changed, this.domainChanged];
 
   private readonly registry: Registry;
 
@@ -118,6 +122,11 @@ export class WorkspacesView implements vscode.TreeDataProvider<TreeNode>, vscode
   dataFor(file: string): WorkspaceData | undefined {
     const root = this.registry.rootOf(file);
     return root ? this.data.get(pathKey(root)) : undefined;
+  }
+
+  /** The domain of the first readable workspace, as the CLI resolves it. */
+  domain(): number | undefined {
+    return this.started()[0]?.listing.domain;
   }
 
   /** What each readable workspace started, for the Mesh view. */
@@ -198,6 +207,11 @@ export class WorkspacesView implements vscode.TreeDataProvider<TreeNode>, vscode
     this.tree = buildTree(this.registry.roots.flatMap((r) => this.data.get(pathKey(r)) ?? []));
     this.parentOf = parents(this.tree);
     this.changed.fire();
+    const domain = this.domain();
+    if (domain !== this.lastDomain) {
+      this.lastDomain = domain;
+      this.domainChanged.fire();
+    }
   }
 
   private startPolling(): void {

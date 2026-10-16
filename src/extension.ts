@@ -17,7 +17,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const registry = new Registry();
   const view = new WorkspacesView(registry);
   const diagnostics = new RantDiagnostics();
-  const bridge = new Bridge(vscode.window.createOutputChannel("Rant Bridge", { log: true }), context.secrets);
+  const bridge = new Bridge(vscode.window.createOutputChannel("Rant Bridge", { log: true }), context.secrets, () => view.domain());
   const mesh = new MeshView(bridge, view, context.extensionUri);
   const refreshAll = async () => {
     // a changed set of workspaces reloads the view through onDidChangeRoots
@@ -55,6 +55,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
     // a command may add a package, a node or a build file, or move Rant, so all of it is read again
     onCommandDone((root) => void view.reload([root])),
+    view.onDidChangeDomain(() => void bridge.followDomain()),
   );
 
   await refreshAll();

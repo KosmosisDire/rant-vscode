@@ -19,7 +19,7 @@ export interface WorkspaceData {
   error?: string;
 }
 
-const EMPTY: NodeListing = { nodes: [], runningGroups: [] };
+const EMPTY: NodeListing = { domain: 0, nodes: [], runningGroups: [] };
 
 /** The stdout of a command that must succeed. */
 async function json(cli: Cli, root: string, args: string[]): Promise<string> {

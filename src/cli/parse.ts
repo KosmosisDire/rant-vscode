@@ -47,9 +47,13 @@ export interface NodeEntry {
   running: boolean;
   groups: string[];
   kind?: string;
+  /** The domain a started node joined. */
+  domain?: number;
 }
 
 export interface NodeListing {
+  /** The domain the workspace's mesh is on, as the CLI resolves it. */
+  domain: number;
   nodes: NodeEntry[];
   /** Group names with a run going, without the `key=value` params of a second run. */
   runningGroups: string[];
@@ -77,6 +81,10 @@ function list(v: unknown, what: string): unknown[] {
 
 function text(v: unknown, what: string): string {
   return typeof v === "string" ? v : bad(what);
+}
+
+function count(v: unknown, what: string): number {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : bad(what);
 }
 
 function parseJson(raw: string, what: string): unknown {
@@ -142,7 +150,7 @@ export function parseNodes(raw: string): NodeListing {
   const running = (row: unknown, group?: string) => {
     const r = object(row, what);
     const name = text(r.name, what);
-    const entry = byName.get(name) ?? { name, type: text(r.type, what), running: true, groups: [] };
+    const entry = byName.get(name) ?? { name, type: text(r.type, what), running: true, groups: [], domain: count(r.domain, what) };
     if (group && !entry.groups.includes(group)) entry.groups.push(group);
     byName.set(name, entry);
   };
@@ -160,7 +168,7 @@ export function parseNodes(raw: string): NodeListing {
     const name = text(r.name, what);
     nodes.push({ name, type: name, running: false, groups: [], kind: text(r.kind, what) });
   }
-  return { nodes, runningGroups };
+  return { domain: count(o.domain, what), nodes, runningGroups };
 }
 
 /** Where a node's source is, from `rant info node <name> --json` run in the workspace root. */

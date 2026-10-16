@@ -120,7 +120,8 @@ function nodeItem(id: string, name: string, peer: Peer | undefined, root?: strin
  * groups under both, then the nodes of no group. A started node matches its peer by name,
  * since the CLI starts it under its instance name. Entities follow as one tree of names.
  */
-export function buildMesh(peers: Peer[], entities: MeshEntity[], started: Started[]): MeshItem[] {
+/** The mesh on one domain: what each workspace started there, by group, then every other peer. */
+export function buildMesh(peers: Peer[], entities: MeshEntity[], started: Started[], domain: number): MeshItem[] {
   const visible = peers.filter((p) => p.active && !tooling(p.name));
   const live = new Map(visible.map((p) => [p.name, p]));
   const byName = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label);
@@ -129,8 +130,11 @@ export function buildMesh(peers: Peer[], entities: MeshEntity[], started: Starte
   const claimed = new Set<string>();
   const several = started.length > 1;
   for (const w of started) {
+    // a node started on another domain is on another mesh, never a row of this one
+    const here = w.listing.nodes.filter((n) => n.running && n.domain === domain);
     for (const g of w.listing.runningGroups) {
-      const members = w.listing.nodes.filter((n) => n.running && n.groups.includes(g));
+      const members = here.filter((n) => n.groups.includes(g));
+      if (!members.length) continue;
       const id = `group/${w.root}/${g}`;
       groups.push({
         kind: "group",
@@ -144,7 +148,7 @@ export function buildMesh(peers: Peer[], entities: MeshEntity[], started: Starte
       });
       members.forEach((n) => claimed.add(n.name));
     }
-    for (const n of w.listing.nodes.filter((x) => x.running && x.groups.length === 0)) {
+    for (const n of here.filter((x) => x.groups.length === 0)) {
       loose.push(nodeItem(`node/${w.root}/${n.name}`, n.name, live.get(n.name), w.root));
       claimed.add(n.name);
     }

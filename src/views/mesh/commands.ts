@@ -104,7 +104,7 @@ export function registerMeshCommands(bridge: Bridge, view: MeshView, extension: 
     vscode.commands.registerCommand("rant.mesh.logs", () => logs.show()),
     vscode.commands.registerCommand("rant.mesh.domain", async () => {
       const text = await vscode.window.showInputBox({
-        prompt: "The Rant domain to explore, empty for RANT_DOMAIN or 0",
+        prompt: "The Rant domain to explore, empty to follow the workspace",
         value: String(bridge.domain),
         validateInput: (v) => (v === "" || (/^\d+$/.test(v) && Number(v) <= 65535) ? undefined : "A number from 0 to 65535"),
       });
