@@ -47,7 +47,7 @@ function section(root: string, name: string, children: TreeNode[]): TreeNode[] {
 // by name alone, so a row never moves when what runs changes
 const byName = (a: TreeNode, b: TreeNode) => a.label.localeCompare(b.label);
 
-const LANGUAGE: Record<string, string> = { cmake: "C++", python: "Python", csharp: "C#" };
+const LANGUAGE: Record<string, string> = { cmake: "C++", python: "Python", csharp: "C#", rust: "Rust" };
 
 const slash = (p: string) => p.split(path.sep).join("/");
 const relative = (from: string, to: string) => slash(path.relative(from, to)) || ".";

@@ -14,7 +14,7 @@ export interface PackageInfo {
 export interface LibUse {
   folder: string;
   kind: string;
-  /** CPM, FetchContent, find_package, pyproject, venv, PackageReference or ProjectReference. */
+  /** CPM, FetchContent, find_package, pyproject, venv, PackageReference, ProjectReference, Cargo, Cargo workspace or Cargo path. */
   how: string;
   version: string | null;
   /** The build file, or the venv folder. */

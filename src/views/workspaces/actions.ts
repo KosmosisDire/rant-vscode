@@ -2,7 +2,7 @@ import type { TreeNode } from "./tree.ts";
 
 export type Action = "build" | "start" | "stop" | "restart" | "updateRant" | "addRant";
 export type PresetKind = "workspace" | "package" | "node" | "group";
-export type Language = "cpp" | "python" | "csharp";
+export type Language = "cpp" | "python" | "csharp" | "rust";
 
 export const PRESET_KINDS: ReadonlyArray<{ kind: PresetKind; detail: string }> = [
   { kind: "workspace", detail: "A folder with a talker, a listener and a group of both" },
@@ -11,7 +11,7 @@ export const PRESET_KINDS: ReadonlyArray<{ kind: PresetKind; detail: string }> =
   { kind: "group", detail: "A group file that starts nodes together" },
 ];
 
-export const LANGUAGES: readonly Language[] = ["cpp", "python", "csharp"];
+export const LANGUAGES: readonly Language[] = ["cpp", "python", "csharp", "rust"];
 
 /** The CLI arguments for an action on a row, or undefined when the action does not fit the row. */
 export function actionArgs(action: Action, row: Pick<TreeNode, "kind" | "ref" | "lib">): string[] | undefined {

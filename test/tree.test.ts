@@ -86,10 +86,12 @@ describe("buildTree", () => {
     assert.deepEqual(sectionOf(ws, "Outside packages").map((r) => [r.lib, r.hasRant]), [["cam", true], ["tools", false]]);
     const bare = { ...w.packages[0]!, files: ["C:/work/wsa/arm/Arm.csproj"], kinds: ["csharp"], rant: null, folder: "C:/work/wsa/arm", name: "arm" };
     const declared = { ...w.packages[0]!, files: ["C:/work/wsa/drv/package.rant"], kinds: ["package.rant"], rant: null, folder: "C:/work/wsa/drv", name: "drv" };
-    const [more] = buildTree([{ ...w, packages: [bare, declared] }]);
+    const crate = { ...w.packages[0]!, files: ["C:/work/wsa/jog/Cargo.toml"], kinds: ["rust"], rant: null, folder: "C:/work/wsa/jog", name: "jog" };
+    const [more] = buildTree([{ ...w, packages: [bare, declared, crate] }]);
     assert.deepEqual(sectionOf(more, "Packages").map((p) => [p.label, p.description, p.lib, p.hasRant]), [
       ["arm", "C#, no Rant", "arm", false],
       ["drv", "", undefined, undefined],
+      ["jog", "Rust, no Rant", "jog", false],
     ]);
   });
 
@@ -154,6 +156,7 @@ describe("newArgs", () => {
   it("passes the language to workspaces and packages only", () => {
     assert.deepEqual(newArgs("workspace", "demo", "cpp"), ["new", "workspace", "demo", "--lang", "cpp", "-y"]);
     assert.deepEqual(newArgs("package", "cam", "csharp"), ["new", "package", "cam", "--lang", "csharp", "-y"]);
+    assert.deepEqual(newArgs("package", "jog", "rust"), ["new", "package", "jog", "--lang", "rust", "-y"]);
     assert.deepEqual(newArgs("node", "lidar"), ["new", "node", "lidar", "-y"]);
     assert.deepEqual(newArgs("group", "NavGroup"), ["new", "group", "NavGroup", "-y"]);
   });
