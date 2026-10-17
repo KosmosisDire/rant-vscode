@@ -24,6 +24,10 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
 
+      # the tests open a Rant node on loopback, which needs multicast there
+      - name: Loopback multicast
+        run: sudo ip link set lo multicast on
+
       - name: Check, test and pack
         run: |
           npm ci
