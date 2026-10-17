@@ -1,6 +1,8 @@
 import * as vscode from "vscode";
 
 import type { LogLine, RantNode } from "rant-middleware";
+import { findBridges } from "rant-middleware/tunnel";
+import type { FoundBridge } from "rant-middleware/tunnel";
 
 import type { MeshConnection } from "../../mesh/connection.ts";
 import { EntityPanel } from "./panel.ts";
@@ -15,13 +17,45 @@ async function askPassphrase(mesh: MeshConnection, url: string): Promise<boolean
   return true;
 }
 
+/** The bridges on this network: any bridge answers rant-bridges.local, else this machine's. */
+async function nearbyBridges(): Promise<FoundBridge[]> {
+  for (const url of ["ws://rant-bridges.local:7480", "ws://127.0.0.1:7480"]) {
+    try {
+      const list = await findBridges(url, 2000);
+      if (list.length) return list;
+    } catch {
+      // the next place may answer
+    }
+  }
+  return [];
+}
+
+type Choice = vscode.QuickPickItem & { url?: string };
+
 /** Points the Mesh view at a bridge's URL, or empty for this machine's own network. */
 async function chooseBridge(mesh: MeshConnection): Promise<void> {
-  const url = await vscode.window.showInputBox({
-    prompt: "A bridge to reach the mesh through, such as ws://192.168.1.20:7480 or wss://bridge.example.com. Empty joins this machine's network.",
+  const pick = vscode.window.createQuickPick<Choice>();
+  pick.placeholder = "Where the Mesh view reaches the mesh";
+  const fixed: Choice[] = [{ label: "This machine's network", description: "no bridge", url: "" }];
+  const other: Choice = { label: "Another bridge...", description: "type its address" };
+  pick.items = [...fixed, other];
+  pick.busy = true;
+  void nearbyBridges().then((list) => {
+    pick.items = [...fixed, ...list.map((b): Choice => ({ label: b.name, description: b.url, url: b.url })), other];
+    pick.busy = false;
+  });
+  const chosen = await new Promise<Choice | undefined>((resolve) => {
+    pick.onDidAccept(() => resolve(pick.selectedItems[0]));
+    pick.onDidHide(() => resolve(undefined));
+    pick.show();
+  });
+  pick.dispose();
+  if (!chosen) return;
+  const url = chosen !== other ? chosen.url : await vscode.window.showInputBox({
+    prompt: "A bridge to reach the mesh through, such as ws://192.168.1.20:7480 or wss://bridge.example.com",
     value: mesh.remote,
     ignoreFocusOut: true,
-    validateInput: (v) => (v.trim() === "" || /^wss?:\/\/\S+$/.test(v.trim()) ? undefined : "A ws:// or wss:// URL, or empty"),
+    validateInput: (v) => (/^wss?:\/\/\S+$/.test(v.trim()) ? undefined : "A ws:// or wss:// URL"),
   });
   if (url === undefined) return;
   const next = url.trim();
