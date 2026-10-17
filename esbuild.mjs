@@ -1,4 +1,4 @@
-import { copyFile } from "node:fs/promises";
+import { copyFile, mkdir } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
@@ -17,6 +17,7 @@ const builds = [
   { entryPoints: ["src/page/entity.ts"], outfile: "dist/page.js", platform: "browser", format: "iife", target: "es2022" },
 ].map((o) => ({ ...o, bundle: true, sourcemap: true, minify }));
 
+await mkdir("dist", { recursive: true });
 await copyFile(join(rantDist, "rant_wasm.wasm"), "dist/rant_wasm.wasm");
 if (process.argv.includes("--watch")) {
   for (const o of builds) await (await context(o)).watch();
