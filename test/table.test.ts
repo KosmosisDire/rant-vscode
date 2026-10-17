@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { SchemaBlock } from "rant-client";
-
 import { pack, unpack } from "../src/views/mesh/pack.ts";
+import type { SchemaBlock } from "../src/views/mesh/table.ts";
 import { addElement, hasMedia, keepEdits, keyOf, mediaIn, parseEdit, removeElement, tableRows, templateOf } from "../src/views/mesh/table.ts";
 
-// a block as the bridge sends it: the field rows depth first, struct array members as `points[].z`
+// a block as blockOf makes it: the field rows depth first, struct array members as `points[].z`
 const Reading: SchemaBlock = {
   name: "Reading", hash: "", dsl: "",
   fields: [

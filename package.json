@@ -110,38 +110,28 @@
       },
       {
         "view": "rant.mesh",
-        "contents": "No Rant bridge is set up on this machine. The bridge lets the editor see the mesh.\n[Enable the Bridge](command:rant.bridge.enable)\n[Use Another Bridge](command:rant.bridge.choose)",
-        "when": "rant.bridge == missing && !rant.bridgeRemote"
-      },
-      {
-        "view": "rant.mesh",
-        "contents": "The Rant bridge on this machine is not running.\n[Start the Bridge](command:rant.bridge.start)\n[Use Another Bridge](command:rant.bridge.choose)",
-        "when": "rant.bridge == down && !rant.bridgeRemote"
+        "contents": "The editor could not join the mesh on this machine. Retrying.\n[Try Again](command:rant.mesh.reconnect)\n[Use a Bridge](command:rant.bridge.choose)",
+        "when": "rant.mesh == down && !rant.bridgeRemote"
       },
       {
         "view": "rant.mesh",
         "contents": "The bridge in the setting rant.bridgeUrl does not answer. Retrying.\n[Choose Bridge](command:rant.bridge.choose)",
-        "when": "rant.bridge == down && rant.bridgeRemote"
+        "when": "rant.mesh == down && rant.bridgeRemote"
       },
       {
         "view": "rant.mesh",
-        "contents": "Connecting to the Rant bridge.",
-        "when": "rant.bridge == connecting || rant.bridge == reconnecting"
-      },
-      {
-        "view": "rant.mesh",
-        "contents": "The bridge on this machine refused the connection. Its passphrase is in ~/.rant/bridge.yaml.\n[Restart the Bridge](command:rant.bridge.restart)\n[Try Again](command:rant.bridge.reconnect)",
-        "when": "rant.bridge == refused && !rant.bridgeRemote"
+        "contents": "Joining the mesh.",
+        "when": "rant.mesh == connecting || rant.mesh == reconnecting"
       },
       {
         "view": "rant.mesh",
         "contents": "The bridge refused the passphrase.\n[Enter Passphrase](command:rant.bridge.passphrase)\n[Choose Bridge](command:rant.bridge.choose)",
-        "when": "rant.bridge == refused && rant.bridgeRemote"
+        "when": "rant.mesh == refused"
       },
       {
         "view": "rant.mesh",
         "contents": "Nothing on this domain yet.\n[Change Domain](command:rant.mesh.domain)",
-        "when": "rant.bridge == open"
+        "when": "rant.mesh == open"
       }
     ],
     "commands": [
@@ -239,23 +229,8 @@
         "icon": "$(globe)"
       },
       {
-        "command": "rant.bridge.enable",
-        "title": "Enable Bridge",
-        "category": "Rant"
-      },
-      {
-        "command": "rant.bridge.start",
-        "title": "Start Bridge",
-        "category": "Rant"
-      },
-      {
-        "command": "rant.bridge.restart",
-        "title": "Restart Bridge",
-        "category": "Rant"
-      },
-      {
-        "command": "rant.bridge.reconnect",
-        "title": "Reconnect to Bridge",
+        "command": "rant.mesh.reconnect",
+        "title": "Reconnect to the Mesh",
         "category": "Rant"
       },
       {
@@ -469,7 +444,7 @@
         "rant.bridgeUrl": {
           "type": "string",
           "default": "",
-          "markdownDescription": "The bridge the Mesh view connects to, such as `ws://192.168.1.20:7480` or `wss://bridge.example.com`. Empty uses the bridge on this machine, read from `~/.rant/bridge.yaml`. The passphrase of another bridge is asked for once and kept in the editor's secret storage."
+          "markdownDescription": "A bridge the Mesh view reaches the mesh through, such as `ws://192.168.1.20:7480` or `wss://bridge.example.com`. Empty joins this machine's network directly. The passphrase of a bridge is asked for once and kept in the editor's secret storage."
         }
       }
     }
@@ -489,7 +464,6 @@
     "typescript": "^5.9.0"
   },
   "dependencies": {
-    "rant-client": "https://github.com/KosmosisDire/rant-bridge/releases/download/v0.0.2/rant-client-0.0.2.tgz",
-    "yaml": "^2.9.1"
+    "rant-middleware": "file:../rant/bindings/web"
   }
 }

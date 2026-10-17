@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
 
-import type { MeshEntity, Peer } from "rant-client";
+import type { Entity, Peer } from "rant-middleware";
 
-import type { Bridge } from "../../bridge/connection.ts";
+import type { MeshConnection } from "../../mesh/connection.ts";
 import type { WorkspacesView } from "../workspaces/provider.ts";
 import { buildMesh, builtIn, meshCounts, nest } from "./tree.ts";
 import type { MeshItem } from "./tree.ts";
@@ -19,28 +19,27 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
   private tree: MeshItem[] = [];
   private epoch = -1;
   private peers: Peer[] = [];
-  private entities: MeshEntity[] = [];
+  private entities: Entity[] = [];
   private timer: NodeJS.Timeout | undefined;
-  private polling = false;
   private holds: vscode.Disposable[] = [];
   private readonly view: vscode.TreeView<MeshItem>;
-  private readonly bridge: Bridge;
+  private readonly mesh: MeshConnection;
   private readonly workspaces: WorkspacesView;
   private readonly icons: vscode.Uri;
   private readonly disposables: vscode.Disposable[] = [this.changed];
 
-  constructor(bridge: Bridge, workspaces: WorkspacesView, extension: vscode.Uri) {
-    this.bridge = bridge;
+  constructor(mesh: MeshConnection, workspaces: WorkspacesView, extension: vscode.Uri) {
+    this.mesh = mesh;
     this.workspaces = workspaces;
     this.icons = vscode.Uri.joinPath(extension, "media", "icons");
     this.view = vscode.window.createTreeView("rant.mesh", { treeDataProvider: this });
     this.disposables.push(
       this.view,
       this.view.onDidChangeVisibility((e) => (e.visible ? this.show() : this.hide())),
-      bridge.onDidChange(() => {
+      mesh.onDidChange(() => {
         this.epoch = -1;
-        if (bridge.state !== "open") this.clear();
-        void this.poll();
+        if (mesh.state !== "open") this.clear();
+        this.poll();
       }),
       // which nodes run under which group comes from the workspaces
       workspaces.onDidChangeTreeData(() => this.rebuild()),
@@ -91,26 +90,27 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
     return item;
   }
 
-  async getChildren(n?: MeshItem): Promise<MeshItem[]> {
+  getChildren(n?: MeshItem): MeshItem[] {
     if (!n) return this.tree;
     if (n.kind === "section" || n.kind === "folder" || n.kind === "group") return n.children;
-    if (n.kind !== "node" || !n.peer || !this.bridge.node) return [];
+    const node = this.mesh.node;
+    if (n.kind !== "node" || !n.peer || !node || node.closed) return [];
     // a node's own entities are read when it is opened
-    const list = await this.bridge.node.reflection.entities(n.peer.id).catch(() => []);
+    const list = node.reflection.entities(n.peer.id);
     return nest(meshCounts(list.filter((e) => e.provides && !builtIn(e.name)), this.entities), n.id);
   }
 
   /** Reads the whole mesh again. */
-  async refresh(): Promise<void> {
+  refresh(): void {
     this.epoch = -1;
-    await this.poll();
+    this.poll();
   }
 
   private show(): void {
-    if (!this.holds.length) this.holds = [this.bridge.want(), this.workspaces.watch()];
+    if (!this.holds.length) this.holds = [this.mesh.want(), this.workspaces.watch()];
     clearInterval(this.timer);
-    this.timer = setInterval(() => void this.poll(), POLL_MS);
-    void this.poll();
+    this.timer = setInterval(() => this.poll(), POLL_MS);
+    this.poll();
   }
 
   private hide(): void {
@@ -130,29 +130,22 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
   }
 
   private rebuild(): void {
-    if (this.bridge.state !== "open") return;
-    const tree = buildMesh(this.peers, this.entities, this.workspaces.started(), this.bridge.domain);
+    if (this.mesh.state !== "open") return;
+    const tree = buildMesh(this.peers, this.entities, this.workspaces.started(), this.mesh.domain);
     if (shown(tree) === shown(this.tree) && this.tree.length) return;
     this.tree = tree;
     this.changed.fire();
   }
 
-  private async poll(): Promise<void> {
-    const node = this.bridge.node;
-    if (this.polling || !node || this.bridge.state !== "open") return;
-    this.polling = true;
-    try {
-      const r = node.reflection;
-      const [epoch, peers] = await Promise.all([r.epoch(), r.peers()]);
-      if (epoch !== this.epoch) this.entities = await r.mesh();
-      this.epoch = epoch;
-      this.peers = peers;
-      this.rebuild();
-    } catch {
-      // a dropped connection shows through the bridge state, the next poll tries again
-    } finally {
-      this.polling = false;
-    }
+  private poll(): void {
+    const node = this.mesh.node;
+    if (!node || node.closed || this.mesh.state !== "open") return;
+    const r = node.reflection;
+    const epoch = r.epoch;
+    if (epoch !== this.epoch) this.entities = r.mesh();
+    this.epoch = epoch;
+    this.peers = r.peers();
+    this.rebuild();
   }
 
   dispose(): void {

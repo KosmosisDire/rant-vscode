@@ -1,4 +1,6 @@
-import type { MeshEntity, Peer } from "rant-client";
+import type { Entity, Peer } from "rant-middleware";
+
+import { typeName } from "./table.ts";
 
 import type { NodeEntry } from "../../cli/parse.ts";
 import type { WorkspaceData } from "../../workspaces/load.ts";
@@ -22,7 +24,7 @@ export type MeshItem =
   | { kind: "folder"; id: string; label: string; children: MeshItem[] }
   | { kind: "group"; id: string; label: string; description: string; tooltip: string; root: string; ref: string; children: MeshItem[] }
   | NodeItem
-  | { kind: "entity"; id: string; label: string; description: string; tooltip: string; entity: MeshEntity };
+  | { kind: "entity"; id: string; label: string; description: string; tooltip: string; entity: Entity };
 
 /** What the Mesh view needs of a workspace: what it started, and under which groups. */
 export type Started = Pick<WorkspaceData, "root" | "name" | "listing">;
@@ -39,7 +41,7 @@ export const builtIn = (name: string) => name.startsWith("@rant/");
 /** Nodes that only look at the mesh: Rant's own, editors and the explorer. */
 const tooling = (name: string) => builtIn(name) || name === "vscode" || name === "explorer";
 
-function counts(e: MeshEntity): string {
+function counts(e: Entity): string {
   switch (e.kind) {
     case "topic":
       return `${e.providers} pub, ${e.consumers} sub`;
@@ -50,27 +52,26 @@ function counts(e: MeshEntity): string {
   }
 }
 
-function entityItem(e: MeshEntity, id: string, label: string): MeshItem {
-  // a bare type has no name, so its kind stands in, such as f64
-  const type = e.schema ? e.schema.name || e.schema.fields[0]?.kind || "value" : "bytes";
+function entityItem(e: Entity, id: string, label: string): MeshItem {
+  const type = typeName(e.schema);
   const flags = [e.conflict ? "type conflict" : "", e.incomplete ? "incomplete" : ""].filter(Boolean);
-  const lines = [`${e.kind} ${e.name}`, `type ${type}${e.rsp ? ` to ${e.rsp.name}` : ""}`, counts(e), e.reliable ? "reliable" : "best effort", ...flags];
+  const lines = [`${e.kind} ${e.name}`, `type ${type}${e.rspSchema ? ` to ${typeName(e.rspSchema)}` : ""}`, counts(e), e.reliable ? "reliable" : "best effort", ...flags];
   return { kind: "entity", id, label, description: [type, counts(e), ...flags].join(", "), tooltip: lines.join("\n"), entity: e };
 }
 
 interface Dir {
   dirs: Map<string, Dir>;
-  leaves: { label: string; entity: MeshEntity }[];
+  leaves: { label: string; entity: Entity }[];
 }
 
 /** Entities as a tree split on `/`, one segment a level, folders first, the way the explorer shows them. */
 /** A node's own entities count only its own side, so each takes the mesh's row of the same entity when there is one. */
-export function meshCounts(own: MeshEntity[], mesh: MeshEntity[]): MeshEntity[] {
+export function meshCounts(own: Entity[], mesh: Entity[]): Entity[] {
   const byName = new Map(mesh.map((e) => [`${e.kind} ${e.name}`, e]));
   return own.map((e) => byName.get(`${e.kind} ${e.name}`) ?? e);
 }
 
-export function nest(entities: MeshEntity[], scope: string): MeshItem[] {
+export function nest(entities: Entity[], scope: string): MeshItem[] {
   const root: Dir = { dirs: new Map(), leaves: [] };
   for (const e of entities) {
     const segs = e.name.split("/").filter(Boolean);
@@ -97,17 +98,17 @@ export function nest(entities: MeshEntity[], scope: string): MeshItem[] {
 }
 
 function nodeItem(id: string, name: string, peer: Peer | undefined, root?: string): NodeItem {
-  // a round trip shows only once one was measured, never the hop to the bridge alone
-  const rtt = peer?.rtt.samples ? rttText(peer.rtt.us) : "";
+  // a round trip shows only once reliable traffic measured one
+  const rtt = peer?.rttSamples ? rttText(peer.rttUs) : "";
   const state = peer ? "up" : "joining";
   const lines = [name, peer ? peer.address : "started, not on the mesh yet"];
-  if (rtt) lines.push(`round trip ${rtt}, jitter ${rttText(peer?.rtt.jitterUs ?? 0) || "0 ms"}`);
+  if (rtt) lines.push(`round trip ${rtt}, jitter ${rttText(peer?.rttJitterUs ?? 0) || "0 ms"}`);
   if (root) lines.push(`started by ${root}`);
   return {
     kind: "node",
     id,
     label: name,
-    description: !peer ? "joining" : peer.missed > 1 ? `missed ${peer.missed}` : rtt,
+    description: !peer ? "joining" : rtt,
     tooltip: lines.join("\n"),
     state,
     peer,
@@ -122,7 +123,7 @@ function nodeItem(id: string, name: string, peer: Peer | undefined, root?: strin
  * since the CLI starts it under its instance name. Entities follow as one tree of names.
  */
 /** The mesh on one domain: what each workspace started there, by group, then every other peer. */
-export function buildMesh(peers: Peer[], entities: MeshEntity[], started: Started[], domain: number): MeshItem[] {
+export function buildMesh(peers: Peer[], entities: Entity[], started: Started[], domain: number): MeshItem[] {
   const visible = peers.filter((p) => p.active && !tooling(p.name));
   const live = new Map(visible.map((p) => [p.name, p]));
   const byName = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label);

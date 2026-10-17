@@ -1,4 +1,60 @@
-import type { SchemaBlock, SchemaRow } from "rant-client";
+import type { CompiledSchema, FieldKind } from "rant-middleware";
+
+/** One field of a schema as a page reads it: its dotted path, with `[]` past each array. */
+export interface SchemaRow {
+  path: string;
+  name: string;
+  /** string is a capped string, vstring one of any length */
+  kind: string;
+  named?: string;
+  elem?: string;
+  elemNamed?: string;
+  count?: number;
+  cap?: number;
+  variants?: { name: string; value: number }[];
+}
+
+/** A schema as plain data, since a webview message is JSON. */
+export interface SchemaBlock {
+  name: string;
+  hash: string;
+  dsl: string;
+  fields: SchemaRow[];
+}
+
+const KIND: Partial<Record<FieldKind, string>> = { str: "string", vstr: "vstring" };
+const kindText = (k: FieldKind): string => KIND[k] ?? k;
+
+/** A compiled schema as the page reads it. */
+export function blockOf(s: CompiledSchema): SchemaBlock {
+  const table = s.fields;
+  const paths: string[] = [];
+  const fields = table.map((f, i): SchemaRow => {
+    // the nearest row one level up holds this one, and an array of structs adds [] to the path
+    let parent = i - 1;
+    while (parent >= 0 && table[parent]!.depth >= f.depth) parent--;
+    const up = parent >= 0 ? paths[parent]! + (table[parent]!.kind === "struct" ? "" : "[]") : "";
+    paths.push(parent >= 0 ? `${up}.${f.name}` : f.name);
+    const row: SchemaRow = { path: paths[i]!, name: f.name, kind: kindText(f.kind) };
+    if (f.typeName) row.named = f.typeName;
+    if (f.kind === "arr" || f.kind === "varr") {
+      row.elem = f.elem ? kindText(f.elem) : "";
+      if (f.elemName) row.elemNamed = f.elemName;
+      if (f.kind === "arr") row.count = f.count;
+    }
+    if (f.strCap) row.cap = f.strCap;
+    if (f.kind === "enum") row.variants = s.enumVariants(i);
+    return row;
+  });
+  return { name: s.name, hash: s.hash.toString(16).padStart(16, "0"), dsl: s.dsl, fields };
+}
+
+/** A schema's type in a few words: its name, a bare type's kind such as f64, or bytes when untyped. */
+export function typeName(s: CompiledSchema | null): string {
+  if (!s) return "bytes";
+  const first = s.fields[0];
+  return s.name || (first ? kindText(first.kind) : "value");
+}
 
 /** Where a value sits: member names and element indices from the root. */
 export type Path = (string | number)[];

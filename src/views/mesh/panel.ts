@@ -1,11 +1,12 @@
 import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 
-import type { MeshEntity, Publisher, RantNode, RemoteFunction, RemoteTask, RemoteVariable, Subscriber, TaskCall } from "rant-client";
+import type { Entity, Publisher, RantNode, RemoteFunction, RemoteTask, RemoteVariable, Subscriber, TaskCall } from "rant-middleware";
 
-import type { Bridge } from "../../bridge/connection.ts";
+import type { MeshConnection } from "../../mesh/connection.ts";
 import { pack, unpack } from "./pack.ts";
-import { hasMedia } from "./table.ts";
+import { blockOf, hasMedia } from "./table.ts";
+import type { SchemaBlock } from "./table.ts";
 
 const FLUSH_MS = 100;
 
@@ -24,21 +25,42 @@ interface Handles {
   variable?: RemoteVariable<unknown>;
   fn?: RemoteFunction<unknown, unknown>;
   task?: RemoteTask<unknown, unknown, unknown>;
-  call?: TaskCall<unknown, unknown>;
+  call?: TaskCall<unknown>;
+}
+
+/** What a page keeps of an entity: plain data, since the node it was read from may close. */
+interface Shown {
+  kind: Entity["kind"];
+  name: string;
+  reliable: boolean;
+  writable: boolean;
+  forceable: boolean;
+  cancellable: boolean;
+  from: string;
+  schema: SchemaBlock | null;
+  prg: SchemaBlock | null;
+  rsp: SchemaBlock | null;
+}
+
+function shown(e: Entity): Shown {
+  return {
+    kind: e.kind, name: e.name, reliable: e.reliable, writable: e.writable, forceable: e.forceable, cancellable: e.cancellable, from: e.from,
+    schema: e.schema && blockOf(e.schema), prg: e.progressSchema && blockOf(e.progressSchema), rsp: e.rspSchema && blockOf(e.rspSchema),
+  };
 }
 
 /** A page for one mesh entity: watch a topic or variable, publish, set, call a function or run a task. */
 export class EntityPanel implements vscode.Disposable {
   private static readonly open = new Map<string, EntityPanel>();
 
-  static show(bridge: Bridge, entity: MeshEntity, extension: vscode.Uri): void {
+  static show(mesh: MeshConnection, entity: Entity, extension: vscode.Uri): void {
     const key = `${entity.kind}/${entity.name}`;
     const found = EntityPanel.open.get(key);
     if (found) {
       found.panel.reveal();
       return;
     }
-    EntityPanel.open.set(key, new EntityPanel(bridge, entity, extension, key));
+    EntityPanel.open.set(key, new EntityPanel(mesh, shown(entity), extension, key));
   }
 
   private readonly panel: vscode.WebviewPanel;
@@ -57,14 +79,14 @@ export class EntityPanel implements vscode.Disposable {
   private readonly names = new Map<number, string>();
   private namesAt = 0;
   private readonly timer: NodeJS.Timeout;
-  private readonly bridge: Bridge;
-  private readonly entity: MeshEntity;
+  private readonly mesh: MeshConnection;
+  private readonly entity: Shown;
   private readonly key: string;
   /** A value with a picture in it goes to the page whole, every one: a video frame needs the ones before it. */
   private readonly video: boolean;
 
-  private constructor(bridge: Bridge, entity: MeshEntity, extension: vscode.Uri, key: string) {
-    this.bridge = bridge;
+  private constructor(mesh: MeshConnection, entity: Shown, extension: vscode.Uri, key: string) {
+    this.mesh = mesh;
     this.entity = entity;
     this.key = key;
     this.video = (entity.kind === "topic" || entity.kind === "variable") && hasMedia(entity.schema);
@@ -79,8 +101,8 @@ export class EntityPanel implements vscode.Disposable {
     this.panel.iconPath = { light: vscode.Uri.joinPath(icons, `${entity.kind}-light.svg`), dark: vscode.Uri.joinPath(icons, `${entity.kind}-dark.svg`) };
     this.panel.webview.html = this.html(media, dist);
     this.disposables.push(
-      bridge.want(),
-      bridge.onDidChange(() => void this.attach()),
+      mesh.want(),
+      mesh.onDidChange(() => this.attach()),
       this.panel.webview.onDidReceiveMessage((m: FromPage) => void this.onPage(m)),
       this.panel.onDidDispose(() => this.dispose()),
     );
@@ -96,16 +118,16 @@ export class EntityPanel implements vscode.Disposable {
     this.post({ type: "status", text });
   }
 
-  /** Makes the handles on the bridge's current node, again whenever that node changes. */
-  private async attach(): Promise<void> {
-    const node = this.bridge.state === "open" ? this.bridge.node : undefined;
+  /** Makes the handles on the connection's current node, again whenever that node changes. */
+  private attach(): void {
+    const node = this.mesh.state === "open" ? this.mesh.node : undefined;
     if (node === this.node) return;
     const old = this.h;
     this.h = {};
     this.node = node;
-    for (const handle of [old.sub, old.pub, old.variable, old.fn, old.task]) void handle?.close().catch(() => {});
+    for (const handle of [old.sub, old.pub, old.variable, old.fn, old.task]) handle?.close();
     if (!node) {
-      this.status(`not connected: ${this.bridge.detail}`);
+      this.status(`not connected: ${this.mesh.detail}`);
       return;
     }
     const e = this.entity;
@@ -113,15 +135,15 @@ export class EntityPanel implements vscode.Disposable {
     try {
       if (e.kind === "topic") {
         // best effort never stalls the publisher, and video keeps every frame, so only other values are capped
-        this.h.sub = await node.subscriber(e.name, value, (v, m) => this.value(v, m.publisher), this.video ? {} : { maxRateHz: 30 });
+        this.h.sub = node.subscriber(e.name, value, (v, m) => this.value(v, m.publisherId), this.video ? {} : { maxRateHz: 30 });
       } else if (e.kind === "variable") {
-        const v = await node.remoteVariable(e.name, value);
-        v.onChange((x, info) => this.value(x, info.source));
+        const v = node.remoteVariable(e.name, value);
+        v.onChange((x, update) => this.value(x, update.source));
         this.h.variable = v;
       } else if (e.kind === "function") {
-        this.h.fn = await node.remoteFunction(e.name, value, e.rsp?.dsl ?? null);
+        this.h.fn = node.remoteFunction(e.name, value, e.rsp?.dsl ?? null);
       } else {
-        this.h.task = await node.remoteTask(e.name, value, e.prg?.dsl ?? null, e.rsp?.dsl ?? null);
+        this.h.task = node.remoteTask(e.name, value, e.prg?.dsl ?? null, e.rsp?.dsl ?? null);
       }
       this.status(e.kind === "topic" || e.kind === "variable" ? "waiting for a value" : "");
     } catch (err) {
@@ -149,9 +171,11 @@ export class EntityPanel implements vscode.Disposable {
     if (known) return known;
     if (id === 0 && this.entity.from) return this.entity.from;
     const now = Date.now();
-    if (this.node && now - this.namesAt > 1000) {
+    if (this.node && !this.node.closed && now - this.namesAt > 1000) {
       this.namesAt = now;
-      void this.node.reflection.peers().then((peers) => peers.forEach((p) => this.names.set(p.id, p.name)), () => {});
+      for (const p of this.node.reflection.peers()) this.names.set(p.id, p.name);
+      const found = this.names.get(id);
+      if (found) return found;
     }
     return id ? `node ${id}` : "the owner";
   }
@@ -169,6 +193,11 @@ export class EntityPanel implements vscode.Disposable {
     this.times = this.times.filter((t) => now - t <= 2000);
     const span = this.times.length > 1 ? (this.times[this.times.length - 1]! - this.times[0]!) / 1000 : 0;
     this.post({ type: "stats", from: this.from, hz: span > 0 ? (this.times.length - 1) / span : 0, seen: this.seen, age: (now - this.lastAt) / 1000 });
+  }
+
+  /** A send's outcome, as the status line words it. */
+  private done(what: string, status: string): void {
+    this.status(status === "ok" ? what : `not ${what}: ${status.replace(/_/g, " ")}`);
   }
 
   private result(r: { ok: boolean; status: string; message: string; hasValue: boolean; value: unknown }): void {
@@ -194,23 +223,19 @@ export class EntityPanel implements vscode.Disposable {
             cancellable: !!e.cancellable,
           });
           if (this.lastStatus) this.status(this.lastStatus);
-          await this.attach();
+          this.attach();
           return;
         case "publish":
           if (!this.node) return;
-          this.h.pub ??= await this.node.publisher(e.name, e.schema?.dsl ?? null, { reliable: e.reliable });
-          this.h.pub.send(unpack(m.value));
-          this.status("sent");
+          this.h.pub ??= this.node.publisher(e.name, e.schema?.dsl ?? null, { reliable: e.reliable });
+          this.done("sent", this.h.pub.send(unpack(m.value)));
           return;
         case "set":
           if (!this.h.variable) return;
-          if (m.force) this.h.variable.force(unpack(m.value));
-          else this.h.variable.set(unpack(m.value));
-          this.status(m.force ? "forced" : "set");
+          this.done(m.force ? "forced" : "set", m.force ? this.h.variable.force(unpack(m.value)) : this.h.variable.set(unpack(m.value)));
           return;
         case "unforce":
-          this.h.variable?.unforce();
-          this.status("released");
+          if (this.h.variable) this.done("released", this.h.variable.unforce());
           return;
         case "call": {
           const value = unpack(m.value);
@@ -218,10 +243,9 @@ export class EntityPanel implements vscode.Disposable {
             this.status("calling");
             this.result(await this.h.fn.call(value));
           } else if (this.h.task) {
-            const call = this.h.task.call(value);
+            const call = this.h.task.call(value, { onProgress: (p) => this.post({ type: "progress", value: p === null ? null : pack(p) }) });
             this.h.call = call;
             this.post({ type: "running", on: true });
-            call.onProgress((p) => this.post({ type: "progress", value: p === null ? null : pack(p) }));
             const r = await call.result;
             if (this.h.call === call) this.h.call = undefined;
             this.post({ type: "running", on: false });
@@ -231,7 +255,7 @@ export class EntityPanel implements vscode.Disposable {
           return;
         }
         case "cancel":
-          if (this.h.call) this.status(`cancel: ${await this.h.call.cancel()}`);
+          if (this.h.call) this.status(`cancel: ${this.h.call.cancel()}`);
           return;
       }
     } catch (err) {
@@ -263,7 +287,7 @@ export class EntityPanel implements vscode.Disposable {
     if (EntityPanel.open.get(this.key) !== this) return;
     EntityPanel.open.delete(this.key);
     clearInterval(this.timer);
-    for (const handle of [this.h.sub, this.h.pub, this.h.variable, this.h.fn, this.h.task]) void handle?.close().catch(() => {});
+    for (const handle of [this.h.sub, this.h.pub, this.h.variable, this.h.fn, this.h.task]) handle?.close();
     for (const d of this.disposables) d.dispose();
     this.panel.dispose();
   }

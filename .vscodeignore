@@ -1,6 +1,7 @@
 **
 !dist/extension.js
 !dist/page.js
+!dist/rant_wasm.wasm
 !syntaxes/**
 !media/**
 !language-configuration.json

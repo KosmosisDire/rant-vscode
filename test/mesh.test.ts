@@ -1,37 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { MeshEntity, Peer } from "rant-client";
+import type { CompiledSchema, Entity, Peer } from "rant-middleware";
 
-import { bridgeSettings, meshDomain, rantHome } from "../src/bridge/settings.ts";
+import { meshDomain } from "../src/mesh/settings.ts";
 import type { NodeEntry, NodeListing } from "../src/cli/parse.ts";
 import { buildMesh, meshCounts, nest, rttText } from "../src/views/mesh/tree.ts";
 import type { MeshItem } from "../src/views/mesh/tree.ts";
-
-describe("bridgeSettings", () => {
-  it("builds the url from the port and bind", () => {
-    const s = bridgeSettings("port: 7600\nbind: 127.0.0.1\npassphrase: ABCD-EFGH\n");
-    assert.deepEqual(s, { url: "ws://127.0.0.1:7600", passphrase: "ABCD-EFGH" });
-  });
-
-  it("reaches a bridge bound to every interface through localhost", () => {
-    assert.equal(bridgeSettings("bind: 0.0.0.0\n").url, "ws://127.0.0.1:7480");
-  });
-
-  it("takes the running bridge's url from the state file", () => {
-    const s = bridgeSettings("port: 7480\n", "pid: 12\nurl: ws://127.0.0.1:7481\nversion: 0.1.0\n");
-    assert.equal(s.url, "ws://127.0.0.1:7481");
-  });
-
-  it("reads an empty config as the defaults", () => {
-    assert.deepEqual(bridgeSettings(""), { url: "ws://127.0.0.1:7480", passphrase: "" });
-  });
-
-  it("finds the folder through RANT_HOME", () => {
-    assert.equal(rantHome({ RANT_HOME: "/srv/rant" }, "/home/u"), "/srv/rant");
-    assert.match(rantHome({}, "/home/u"), /home[\\/]u[\\/]\.rant$/);
-  });
-});
 
 describe("meshDomain", () => {
   it("prefers the setting, then the workspace, then RANT_DOMAIN, then 0", () => {
@@ -52,10 +27,14 @@ describe("rttText", () => {
   });
 });
 
-const rtt = (us: number) => ({ us, jitterUs: 0, samples: 1, atUs: 0 });
-const peer = (id: number, name: string): Peer => ({ id, name, address: "10.0.0.2", active: true, lastHeardUs: 0, rtt: rtt(800), meshRtt: rtt(500), missed: 0 });
-const entity = (kind: MeshEntity["kind"], name: string): MeshEntity => ({
-  kind, name, provides: true, consumes: false, reliable: true, providers: 1, consumers: 2, generation: "0",
+const peer = (id: number, name: string): Peer => ({
+  id, uuid: "", name, address: "10.0.0.2", active: true, lastHeardUs: 0, epoch: 0, catchingUp: false, fragmentSize: 1350,
+  rttUs: 800, rttJitterUs: 0, rttMinUs: 800, rttSamples: 1,
+});
+const entity = (kind: Entity["kind"], name: string): Entity => ({
+  kind, name, hash: 0, provides: true, consumes: false, reliable: true, writable: false, forceable: false, cancellable: false,
+  exclusive: false, multi: false, incomplete: false, conflict: false, providers: 1, consumers: 2, provider: 0, from: "",
+  schema: null, schemaHash: 0n, rspSchema: null, rspSchemaHash: 0n, progressSchema: null, progressSchemaHash: 0n, generation: 0n,
 });
 const listing = (groups: Record<string, string[]>, loose: string[] = [], domain = 0): NodeListing => {
   const nodes = new Map<string, NodeEntry>();
@@ -122,14 +101,14 @@ describe("buildMesh", () => {
   });
 
   it("names a bare type by its kind", () => {
-    const bare = { ...entity("variable", "delay"), schema: { name: "", hash: "", dsl: "f64", fields: [{ path: "", name: "", kind: "f64" }] } };
+    const bare = { ...entity("variable", "delay"), schema: { name: "", fields: [{ name: "", kind: "f64" }] } as unknown as CompiledSchema };
     const [, entities] = buildMesh([], [bare], [], 0);
     assert.ok(entities?.kind === "section" && entities.children[0]?.kind === "entity");
     assert.equal(entities.children[0].description, "f64, 2 remote");
   });
 
   it("shows no round trip before one is measured", () => {
-    const [nodes] = buildMesh([{ ...peer(1, "arm"), rtt: { us: 292, jitterUs: 0, samples: 0, atUs: 0 } }], [], [], 0);
+    const [nodes] = buildMesh([{ ...peer(1, "arm"), rttUs: 292, rttSamples: 0 }], [], [], 0);
     assert.ok(nodes?.kind === "section");
     assert.equal(nodes.children[0]?.kind === "node" ? nodes.children[0].description : "?", "");
   });

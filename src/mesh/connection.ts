@@ -1,32 +1,31 @@
-import { readFile } from "node:fs/promises";
-import * as os from "node:os";
-import * as path from "node:path";
 import * as vscode from "vscode";
 
-import { RantNode } from "rant-client";
-import type { RantEvent } from "rant-client";
+import { openNode } from "rant-middleware";
+import type { RantEvent, RantNode } from "rant-middleware";
+import { TunnelNet } from "rant-middleware/tunnel";
+import type { TunnelEvent } from "rant-middleware/tunnel";
+import { UdpNet } from "rant-middleware/udp";
 
-import { bridgeSettings, meshDomain, rantHome } from "./settings.ts";
-import type { BridgeSettings } from "./settings.ts";
+import { meshDomain } from "./settings.ts";
 
-/** missing: no local bridge.yaml. down: nothing answers. refused: the bridge said no, a wrong passphrase. */
-export type BridgeState = "missing" | "down" | "connecting" | "open" | "reconnecting" | "refused";
+/** down: not joined, retrying. refused: the bridge said no, a wrong passphrase. */
+export type MeshState = "down" | "connecting" | "open" | "reconnecting" | "refused";
 
 const RETRY_MS = 5000;
 
 /**
- * The extension's one node on the mesh, through the bridge `rant.bridgeUrl` names, else the one
- * on this machine. It connects while anything wants it.
+ * The extension's one node on the mesh: on this machine's network, or through the bridge that
+ * `rant.bridgeUrl` names. It is open while anything wants it.
  */
-export class Bridge implements vscode.Disposable {
+export class MeshConnection implements vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChange = this.changed.event;
   node: RantNode | undefined;
-  state: BridgeState = "down";
+  state: MeshState = "down";
   /** Why the state is what it is, as one line. */
   detail = "";
-  url = "";
   domain = 0;
+  private net: UdpNet | TunnelNet | undefined;
   private wanted = 0;
   private connecting = false;
   /** Moves on every disconnect, so an attempt that finishes after one knows it is stale. */
@@ -51,31 +50,17 @@ export class Bridge implements vscode.Disposable {
     if (this.wanted > 0 && this.wantedDomain() !== this.domain) await this.reconnect();
   }
 
-  /** The bridge setting, empty for the bridge on this machine. */
+  /** The bridge setting, empty for this machine's own network. */
   get remote(): string {
     return vscode.workspace.getConfiguration("rant").get<string>("bridgeUrl", "").trim();
   }
 
-  /** Keeps the passphrase of a bridge elsewhere in the editor's secret storage. */
+  /** Keeps the passphrase of a bridge in the editor's secret storage. */
   setPassphrase(url: string, passphrase: string): Thenable<void> {
     return this.secrets.store(`rant.bridge.${url}`, passphrase);
   }
 
-  /** Where to connect: the setting with its stored passphrase, else what this machine's bridge wrote. */
-  private async target(): Promise<BridgeSettings | undefined> {
-    const remote = this.remote;
-    if (remote) return { url: remote, passphrase: (await this.secrets.get(`rant.bridge.${remote}`)) ?? "" };
-    const home = rantHome(process.env, os.homedir());
-    const config = await readFile(path.join(home, "bridge.yaml"), "utf8").catch(() => undefined);
-    if (config === undefined) {
-      this.set("missing", `no ${path.join(home, "bridge.yaml")}, run rant bridge enable`);
-      return undefined;
-    }
-    const state = await readFile(path.join(home, "bridge.state"), "utf8").catch(() => undefined);
-    return bridgeSettings(config, state);
-  }
-
-  /** Keeps the connection up until the returned disposable is disposed. */
+  /** Keeps the node open until the returned disposable is disposed. */
   want(): vscode.Disposable {
     this.wanted++;
     void this.connect();
@@ -85,13 +70,13 @@ export class Bridge implements vscode.Disposable {
     });
   }
 
-  /** Drops the connection and connects again, after a change to the settings or the bridge. */
+  /** Closes the node and opens it again, after a change to the settings. */
   async reconnect(): Promise<void> {
     this.disconnect();
     if (this.wanted > 0) await this.connect();
   }
 
-  private set(state: BridgeState, detail: string): void {
+  private set(state: MeshState, detail: string): void {
     if (this.state === state && this.detail === detail) return;
     this.state = state;
     this.detail = detail;
@@ -103,44 +88,45 @@ export class Bridge implements vscode.Disposable {
     this.connecting = true;
     const generation = this.generation;
     clearTimeout(this.timer);
+    const remote = this.remote;
+    let net: UdpNet | TunnelNet | undefined;
     try {
-      const s = await this.target();
-      if (!s) {
-        this.retry();
-        return;
-      }
-      this.url = s.url;
       this.domain = this.wantedDomain();
-      this.set("connecting", `connecting to ${s.url}`);
-      const node = await RantNode.connect(s.url, {
-        passphrase: s.passphrase,
-        // tooling nodes share one name, like the explorer
-        name: "vscode",
-        domain: this.domain,
-        transport: "websocket",
-        // an observer learns the names and types of entities it does not use itself, of every peer
-        fetchDetails: true,
-        maxPeers: 256,
-        onEvent: (e) => this.log(e),
-      });
+      const where = remote ? `the bridge at ${remote}` : "this machine's network";
+      this.set("connecting", `joining ${where}`);
+      if (remote) {
+        const tunnel = await TunnelNet.connect(remote, {
+          passphrase: (await this.secrets.get(`rant.bridge.${remote}`)) ?? "",
+          name: "vscode",
+          onEvent: (e) => this.logTunnel(e),
+        });
+        net = tunnel;
+        tunnel.onConnectionChange((c) => {
+          if (this.net !== tunnel) return;
+          if (c.state === "closed") {
+            this.drop();
+            this.set("down", "the bridge went away");
+            this.retry();
+          } else if (c.state === "open") this.set("open", `${where}, domain ${this.domain}`);
+          else this.set("reconnecting", `reconnecting to ${remote}`);
+        });
+      } else net = await UdpNet.create();
+      // tooling nodes share one name, like the explorer. An observer learns the names and types
+      // of entities it does not use itself, of every peer
+      const node = await openNode("vscode", { net, domain: this.domain, fetchDetails: true, maxPeers: 256, onEvent: (e) => this.log(e) });
       if (this.wanted === 0 || generation !== this.generation) {
         node.close();
+        net.shutdown();
         return;
       }
       this.node = node;
-      node.onConnectionChange((c) => {
-        if (this.node !== node) return;
-        if (c.state === "closed") {
-          this.node = undefined;
-          this.set("down", "the bridge went away");
-          this.retry();
-        } else this.set(c.state, c.state === "open" ? `${s.url}, domain ${this.domain}` : `reconnecting to ${s.url}`);
-      });
-      this.set("open", `${s.url}, domain ${this.domain}`);
+      this.net = net;
+      this.set("open", `${where}, domain ${this.domain}`);
     } catch (e) {
+      net?.shutdown();
       const why = e instanceof Error ? e.message : String(e);
       if (generation !== this.generation) return;
-      const refused = /passphrase|protocol/.test(why);
+      const refused = /passphrase|protocol|too old/.test(why);
       this.set(refused ? "refused" : "down", why);
       // asking again with the same passphrase cannot help, a new one reconnects
       if (!refused) this.retry();
@@ -156,18 +142,29 @@ export class Bridge implements vscode.Disposable {
     if (this.wanted > 0) this.timer = setTimeout(() => void this.connect(), RETRY_MS);
   }
 
+  private drop(): void {
+    const node = this.node, net = this.net;
+    this.node = undefined;
+    this.net = undefined;
+    node?.close();
+    net?.shutdown();
+  }
+
   private disconnect(): void {
     this.generation++;
     clearTimeout(this.timer);
-    const node = this.node;
-    this.node = undefined;
-    node?.close();
+    this.drop();
     this.set("down", "disconnected");
   }
 
   private log(e: RantEvent): void {
-    if (e.kind === "error" || e.kind === "send_error") this.output.error(e.text);
-    else if (e.kind === "warning" || e.kind === "msg_lost" || e.kind === "session_lost") this.output.warn(e.text);
+    if (e.kind === "error") this.output.error(e.text);
+    else if (e.kind === "msg_lost") this.output.warn(e.text);
+    else this.output.info(e.text);
+  }
+
+  private logTunnel(e: TunnelEvent): void {
+    if (e.kind === "error") this.output.error(e.text);
     else this.output.info(e.text);
   }
 

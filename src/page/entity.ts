@@ -1,11 +1,10 @@
 // The page of one mesh entity, run inside a VS Code webview. It draws what the extension posts
 // and sends back what the user asks for. The extension holds the node, this page only shows.
-import type { SchemaBlock } from "rant-client";
-import { FrameDecoder, decodeImage } from "rant-client/video";
-
 import { pack, unpack } from "../views/mesh/pack.ts";
 import { addElement, fieldAt, getAt, hasMedia, keepEdits, keyOf, mediaIn, parseEdit, removeElement, setAt, tableRows, templateOf } from "../views/mesh/table.ts";
-import type { Path, Row } from "../views/mesh/table.ts";
+import type { Path, Row, SchemaBlock } from "../views/mesh/table.ts";
+import { FrameDecoder, decodeImage } from "./video.ts";
+import type { ImageValue } from "./video.ts";
 
 declare function acquireVsCodeApi(): { postMessage(m: unknown): void };
 const vscode = acquireVsCodeApi();
@@ -302,7 +301,7 @@ class Previews {
         // a still picture needs nothing before it, so a busy decode lets this one go
         if (it.busy) continue;
         it.busy = true;
-        decodeImage(v)
+        decodeImage(v as unknown as ImageValue)
           .then((bmp) => {
             this.draw(it, bmp);
             bmp.close();
