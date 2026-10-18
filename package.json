@@ -444,7 +444,7 @@
         "rant.bridgeUrl": {
           "type": "string",
           "default": "",
-          "markdownDescription": "A bridge the Mesh view reaches the mesh through, such as `ws://192.168.1.20:7480` or `wss://bridge.example.com`. Empty joins this machine's network directly. The passphrase of a bridge is asked for once and kept in the editor's secret storage."
+          "markdownDescription": "A bridge the Mesh view reaches the mesh through, such as `ws://192.168.1.20:6731` or `wss://bridge.example.com`. Empty joins this machine's network directly. The passphrase of a bridge is asked for once and kept in the editor's secret storage."
         }
       }
     }
@@ -464,6 +464,6 @@
     "typescript": "^5.9.0"
   },
   "dependencies": {
-    "rant-middleware": "https://github.com/KosmosisDire/Rant/releases/download/v0.0.30/rant-middleware-0.0.30.tgz"
+    "rant-middleware": "https://github.com/KosmosisDire/Rant/releases/download/v0.0.31/rant-middleware-0.0.31.tgz"
   }
 }

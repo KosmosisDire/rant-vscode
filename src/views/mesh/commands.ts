@@ -19,7 +19,7 @@ async function askPassphrase(mesh: MeshConnection, url: string): Promise<boolean
 
 /** The bridges on this network: any bridge answers rant-bridges.local, else this machine's. */
 async function nearbyBridges(): Promise<FoundBridge[]> {
-  for (const url of ["ws://rant-bridges.local:7480", "ws://127.0.0.1:7480"]) {
+  for (const url of ["ws://rant-bridges.local:6731", "ws://127.0.0.1:6731"]) {
     try {
       const list = await findBridges(url, 2000);
       if (list.length) return list;
@@ -52,7 +52,7 @@ async function chooseBridge(mesh: MeshConnection): Promise<void> {
   pick.dispose();
   if (!chosen) return;
   const url = chosen !== other ? chosen.url : await vscode.window.showInputBox({
-    prompt: "A bridge to reach the mesh through, such as ws://192.168.1.20:7480 or wss://bridge.example.com",
+    prompt: "A bridge to reach the mesh through, such as ws://192.168.1.20:6731 or wss://bridge.example.com",
     value: mesh.remote,
     ignoreFocusOut: true,
     validateInput: (v) => (/^wss?:\/\/\S+$/.test(v.trim()) ? undefined : "A ws:// or wss:// URL"),
