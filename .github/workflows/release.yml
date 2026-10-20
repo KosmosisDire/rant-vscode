@@ -1,5 +1,5 @@
 # Checks, tests and packs the extension. A pushed tag v<version> also cuts a GitHub Release
-# with the vsix attached, which `rant vscode install` downloads. Run by hand it only builds.
+# with the vsix attached, which `rant install vscode` downloads. Run by hand it only builds.
 name: release
 
 on:
