@@ -8,6 +8,8 @@ export interface PackageInfo {
   /** Its build files, then its package.rant if it has one. */
   files: string[];
   rant: string | null;
+  /** Put in rant's home by `rant install`, seen by every workspace. */
+  installed: boolean;
 }
 
 /** One line of `rant lib --json`: a build file or venv that takes Rant, or could. */
@@ -107,6 +109,7 @@ export function parsePackages(raw: string): PackageInfo[] {
       folder: text(o.folder, what),
       files: list(o.files, what).map((f) => text(f, what)),
       rant: typeof o.rant === "string" ? o.rant : null,
+      installed: o.installed === true,
     };
   });
 }

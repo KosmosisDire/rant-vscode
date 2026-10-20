@@ -14,6 +14,7 @@ describe("parsePackages", () => {
         folder: "C:/work/wsa",
         files: ["C:/work/wsa/pyproject.toml", "C:/work/wsa/package.rant"],
         rant: "0.0.22",
+        installed: false,
       },
     ]);
   });

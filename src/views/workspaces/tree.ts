@@ -1,6 +1,6 @@
 import * as path from "node:path";
 
-import type { LibUse, NodeEntry, PackageInfo } from "../../cli/parse.ts";
+import type { GroupInfo, LibUse, NodeEntry, PackageInfo } from "../../cli/parse.ts";
 import type { WorkspaceData } from "../../workspaces/load.ts";
 import { pathKey } from "../../workspaces/paths.ts";
 
@@ -31,6 +31,8 @@ export interface TreeNode {
   path?: string;
   /** The file a click opens. */
   open?: string;
+  /** A package rant installed, which is never built or added to. */
+  installed?: boolean;
   /** The workspace could not be read. */
   error: boolean;
   children: TreeNode[];
@@ -77,7 +79,7 @@ function nodeRow(w: WorkspaceData, n: NodeEntry, label: string): TreeNode {
   return row("node", w.root, n.name, label, { running: n.running, nodeType: n.type, tooltip: n.type });
 }
 
-function packageRow(w: WorkspaceData, p: PackageInfo, nodes: TreeNode[]): TreeNode {
+function packageRow(w: WorkspaceData, p: PackageInfo, nodes: TreeNode[], groups: TreeNode[]): TreeNode {
   const here = w.uses.filter((u) => pathKey(u.folder) === pathKey(p.folder));
   const own = new Set(p.files.map((f) => pathKey(f)));
   const builds = p.files.some((f) => path.basename(f) !== "package.rant");
@@ -91,8 +93,40 @@ function packageRow(w: WorkspaceData, p: PackageInfo, nodes: TreeNode[]): TreeNo
     open: p.files[0],
     lib: builds ? relative(w.root, p.folder) : undefined,
     hasRant,
-    running: nodes.some((n) => n.running),
-    children: [...nodes.sort(byName), ...extra.sort(byName)],
+    running: nodes.some((n) => n.running) || groups.some((g) => g.running),
+    installed: p.installed || undefined,
+    children: [...nodes.sort(byName), ...extra.sort(byName), ...groups.sort(byName)],
+  });
+}
+
+function groupRow(w: WorkspaceData, g: GroupInfo): TreeNode {
+  const at = `${w.root}|group|${g.name}`;
+  // a group runs on its own, or inside the run of a group that includes it
+  const runs = (n: NodeEntry) => n.running && (n.groups.includes(g.name) || n.group === g.name);
+  const members = g.nodes.map((m) =>
+    row("node", w.root, m.name, m.name, {
+      id: `${at}|node|${m.name}`,
+      running: w.listing.nodes.some((n) => runs(n) && n.name === m.name),
+      nodeType: m.type,
+      member: true,
+      tooltip: m.type,
+    }),
+  );
+  // an include points at the group's own row rather than nesting what it runs
+  const includes = g.includes.map((name, i) =>
+    row("include", w.root, name, name, {
+      id: `${at}|include|${i}`,
+      tooltip: `Go to ${name}`,
+      running: w.listing.nodes.some((n) => n.running && n.group === name && n.groups.includes(g.name)),
+    }),
+  );
+  return row("group", w.root, g.name, g.name, {
+    running: w.listing.runningGroups.includes(g.name) || w.listing.nodes.some((n) => n.running && n.group === g.name),
+    description: g.description || g.params,
+    tooltip: g.file,
+    path: g.file,
+    open: g.file,
+    children: [...members, ...includes],
   });
 }
 
@@ -107,50 +141,32 @@ function workspaceRow(w: WorkspaceData): TreeNode {
     if (p) nodesOf.get(p.name)?.push(nodeRow(w, n, n.running ? n.name : n.type.slice(p.name.length + 1)));
     else loose.push(nodeRow(w, n, n.name));
   }
-  const packages = w.packages.map((p) => packageRow(w, p, nodesOf.get(p.name) ?? [])).sort(byName);
+  // an installed package holds its own groups, apart from the workspace's
+  const packageOf = (group: string) => group.slice(0, Math.max(group.indexOf("/"), 0));
+  const groupsOf = new Map<string, TreeNode[]>(w.packages.filter((p) => p.installed).map((p) => [p.name, []]));
+  const groups: TreeNode[] = [];
+  for (const g of w.groups) (groupsOf.get(packageOf(g.name)) ?? groups).push(groupRow(w, g));
+  const rows = (keep: boolean) =>
+    w.packages.filter((p) => p.installed === keep).map((p) => packageRow(w, p, nodesOf.get(p.name) ?? [], groupsOf.get(p.name) ?? []));
+  const packages = rows(false).sort(byName);
+  const fromHome = rows(true).sort(byName);
 
   const folders = new Set(w.packages.map((p) => pathKey(p.folder)));
   const outside = [...w.uses.filter((u) => !folders.has(pathKey(u.folder))).map((u) => buildRow(w, u, w.root)), ...loose].sort(byName);
 
-  const groups = w.groups
-    .map((g) => {
-      const at = `${w.root}|group|${g.name}`;
-      // a group runs on its own, or inside the run of a group that includes it
-      const runs = (n: NodeEntry) => n.running && (n.groups.includes(g.name) || n.group === g.name);
-      const members = g.nodes.map((m) =>
-        row("node", w.root, m.name, m.name, {
-          id: `${at}|node|${m.name}`,
-          running: w.listing.nodes.some((n) => runs(n) && n.name === m.name),
-          nodeType: m.type,
-          member: true,
-          tooltip: m.type,
-        }),
-      );
-      // an include points at the group's own row rather than nesting what it runs
-      const includes = g.includes.map((name, i) =>
-        row("include", w.root, name, name, {
-          id: `${at}|include|${i}`,
-          tooltip: `Go to ${name}`,
-          running: w.listing.nodes.some((n) => n.running && n.group === name && n.groups.includes(g.name)),
-        }),
-      );
-      return row("group", w.root, g.name, g.name, {
-        running: w.listing.runningGroups.includes(g.name) || w.listing.nodes.some((n) => n.running && n.group === g.name),
-        description: g.description || g.params,
-        tooltip: g.file,
-        path: g.file,
-        open: g.file,
-        children: [...members, ...includes],
-      });
-    })
-    .sort(byName);
+  groups.sort(byName);
 
   const count = w.listing.nodes.filter((n) => n.running).length;
   return row("workspace", w.root, w.root, w.name, {
     running: count > 0,
     description: count ? `${count} running` : undefined,
     tooltip: w.root,
-    children: [...section(w.root, "Packages", packages), ...section(w.root, "Outside packages", outside), ...section(w.root, "Groups", groups)],
+    children: [
+      ...section(w.root, "Packages", packages),
+      ...section(w.root, "Outside packages", outside),
+      ...section(w.root, "Groups", groups),
+      ...section(w.root, "Installed", fromHome),
+    ],
   });
 }
 

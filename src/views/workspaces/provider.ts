@@ -37,6 +37,7 @@ function iconOf(n: TreeNode): vscode.ThemeIcon {
 }
 
 function contextOf(n: TreeNode): string {
+  if (n.installed) return "installed";
   if (n.kind === "build" || (n.kind === "package" && n.hasRant !== undefined)) return `${n.kind}.${n.hasRant ? "rant" : "bare"}`;
   // a group's node starts with its group, so an idle one has no start of its own
   if (n.kind === "node" && n.member && !n.running) return "member";

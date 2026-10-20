@@ -138,6 +138,19 @@ describe("buildTree", () => {
     assert.notEqual(tree[0]?.children[0]?.id, tree[1]?.children[0]?.id);
   });
 
+  it("puts an installed package with its nodes and groups in its own section", () => {
+    const w = workspace("cli/ls-nodes-idle.json");
+    const bridge = { name: "bridge", kinds: ["package.rant"], folder: "C:/home/.rant/packages/bridge", files: [], rant: null, installed: true };
+    const group = { name: "bridge/Bridge", file: "C:/home/.rant/packages/bridge/Bridge.run", description: "", params: "", includes: [], nodes: [] };
+    const idle = { name: "bridge/bridge", type: "bridge/bridge", running: false, groups: [], kind: "declared" };
+    const [ws] = buildTree([{ ...w, packages: [...w.packages, bridge], groups: [...w.groups, group], listing: { ...w.listing, nodes: [...w.listing.nodes, idle] } }]);
+    assert.deepEqual(ws?.children.map((c) => c.label), ["Packages", "Outside packages", "Groups", "Installed"]);
+    assert.deepEqual(sectionOf(ws, "Groups").map((g) => g.label), ["wsa/WsaGroup"]);
+    const row = sectionOf(ws, "Installed")[0];
+    assert.deepEqual([row?.label, row?.installed, row?.lib], ["bridge", true, undefined]);
+    assert.deepEqual(row?.children.map((c) => [c.kind, c.label]), [["node", "bridge"], ["group", "bridge/Bridge"]]);
+  });
+
   it("leaves out sections with nothing in them", () => {
     const [ws] = buildTree([{ ...workspace("cli/ls-nodes-idle.json"), groups: [], uses: [] }]);
     assert.deepEqual(ws?.children.map((c) => c.label), ["Packages"]);
