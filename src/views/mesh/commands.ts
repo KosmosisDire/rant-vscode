@@ -91,7 +91,8 @@ class MeshLogs implements vscode.Disposable {
     this.node = node;
     const line = (l: LogLine) => {
       const at = new Date(l.wallUs / 1000).toISOString().slice(11, 23);
-      this.channel.appendLine(`${at} ${l.level.padEnd(5)} ${l.node}: ${l.text}`);
+      // Rant's own lines are marked, so they read apart from the node's
+      this.channel.appendLine(`${at} ${l.level.padEnd(5)} ${l.node}${l.origin === "rant" ? " (Rant)" : ""}: ${l.text}`);
     };
     try {
       node.onLog(line);

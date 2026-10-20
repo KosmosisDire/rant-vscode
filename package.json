@@ -464,6 +464,6 @@
     "typescript": "^5.9.0"
   },
   "dependencies": {
-    "rant-middleware": "https://github.com/KosmosisDire/Rant/releases/download/v0.0.31/rant-middleware-0.0.31.tgz"
+    "rant-middleware": "file:../rant/bindings/web"
   }
 }

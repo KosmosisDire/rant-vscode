@@ -1,16 +1,24 @@
 import * as vscode from "vscode";
 
-import type { Entity, Peer } from "rant-middleware";
+import type { Condition, Entity, Level, Peer, RantNode } from "rant-middleware";
 
 import type { MeshConnection } from "../../mesh/connection.ts";
 import type { WorkspacesView } from "../workspaces/provider.ts";
-import { buildMesh, builtIn, meshCounts, nest } from "./tree.ts";
+import { buildMesh, builtIn, conditionItems, meshCounts, nest } from "./tree.ts";
 import type { MeshItem } from "./tree.ts";
 
 const POLL_MS = 1000;
 
 // what the rows show, so the tree is redrawn only when that changes
 const shown = (t: MeshItem[]) => JSON.stringify(t, (k, v: unknown) => (k === "peer" || k === "entity" ? undefined : v));
+
+// a condition's icon and its colour in the theme, as the Problems view draws them
+const levelIcon: Record<Level, vscode.ThemeIcon> = {
+  error: new vscode.ThemeIcon("error", new vscode.ThemeColor("problemsErrorIcon.foreground")),
+  warn: new vscode.ThemeIcon("warning", new vscode.ThemeColor("problemsWarningIcon.foreground")),
+  info: new vscode.ThemeIcon("info", new vscode.ThemeColor("problemsInfoIcon.foreground")),
+  debug: new vscode.ThemeIcon("debug"),
+};
 
 /** The Mesh view: the nodes by group and the entities as one tree, read again when the mesh moves. */
 export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Disposable {
@@ -20,6 +28,9 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
   private epoch = -1;
   private peers: Peer[] = [];
   private entities: Entity[] = [];
+  /** each node's latest status set, by peer id */
+  private readonly status = new Map<number, Condition[]>();
+  private statusNode: RantNode | undefined;
   private timer: NodeJS.Timeout | undefined;
   private holds: vscode.Disposable[] = [];
   private readonly view: vscode.TreeView<MeshItem>;
@@ -73,7 +84,9 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
         item.contextValue = "group.running";
         break;
       case "node":
-        item.iconPath = this.icon(n.state === "up" ? "node-up" : "node-joining");
+        // a node with an error or a warning shows it without being opened
+        item.iconPath =
+          n.worst === "error" || n.worst === "warn" ? levelIcon[n.worst] : this.icon(n.state === "up" ? "node-up" : "node-joining");
         // only a node a workspace started can be stopped or restarted from here
         item.contextValue = n.root ? "node.running" : "peer";
         break;
@@ -81,6 +94,9 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
         item.iconPath = this.icon(n.entity.kind);
         item.contextValue = `entity.${n.entity.kind}`;
         item.command = { command: "rant.mesh.open", title: "Open", arguments: [n] };
+        break;
+      case "condition":
+        item.iconPath = levelIcon[n.level];
         break;
     }
     if (n.kind !== "section" && n.kind !== "folder") {
@@ -95,9 +111,9 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
     if (n.kind === "section" || n.kind === "folder" || n.kind === "group") return n.children;
     const node = this.mesh.node;
     if (n.kind !== "node" || !n.peer || !node || node.closed) return [];
-    // a node's own entities are read when it is opened
+    // a node's own entities are read when it is opened, after its conditions
     const list = node.reflection.entities(n.peer.id);
-    return nest(meshCounts(list.filter((e) => e.provides && !builtIn(e.name)), this.entities), n.id);
+    return [...conditionItems(n), ...nest(meshCounts(list.filter((e) => e.provides && !builtIn(e.name)), this.entities), n.id)];
   }
 
   /** Reads the whole mesh again. */
@@ -123,6 +139,8 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
   private clear(): void {
     this.peers = [];
     this.entities = [];
+    this.status.clear();
+    this.statusNode = undefined;
     if (this.tree.length) {
       this.tree = [];
       this.changed.fire();
@@ -131,15 +149,27 @@ export class MeshView implements vscode.TreeDataProvider<MeshItem>, vscode.Dispo
 
   private rebuild(): void {
     if (this.mesh.state !== "open") return;
-    const tree = buildMesh(this.peers, this.entities, this.workspaces.started(), this.mesh.domain);
+    const tree = buildMesh(this.peers, this.entities, this.workspaces.started(), this.mesh.domain, this.status);
     if (shown(tree) === shown(this.tree) && this.tree.length) return;
     this.tree = tree;
     this.changed.fire();
   }
 
+  /** Every other node's status from when this node opens: each set replaces that node's last. */
+  private watchStatus(node: RantNode): void {
+    this.statusNode = node;
+    this.status.clear();
+    node.onStatus((u) => {
+      if (u.conditions.length) this.status.set(u.nodeId, u.conditions);
+      else this.status.delete(u.nodeId);
+      this.rebuild();
+    });
+  }
+
   private poll(): void {
     const node = this.mesh.node;
     if (!node || node.closed || this.mesh.state !== "open") return;
+    if (node !== this.statusNode) this.watchStatus(node);
     const r = node.reflection;
     const epoch = r.epoch;
     if (epoch !== this.epoch) this.entities = r.mesh();

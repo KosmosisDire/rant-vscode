@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { CompiledSchema, Entity, Peer } from "rant-middleware";
+import type { CompiledSchema, Condition, Entity, Peer } from "rant-middleware";
 
 import { meshDomain } from "../src/mesh/settings.ts";
 import type { NodeEntry, NodeListing } from "../src/cli/parse.ts";
-import { buildMesh, meshCounts, nest, rttText } from "../src/views/mesh/tree.ts";
+import { buildMesh, conditionItems, meshCounts, nest, rttText } from "../src/views/mesh/tree.ts";
 import type { MeshItem } from "../src/views/mesh/tree.ts";
 
 describe("meshDomain", () => {
@@ -114,8 +114,32 @@ describe("buildMesh", () => {
   });
 
   it("shows every kind of entity in one tree and leaves out Rant's own", () => {
-    const tree = buildMesh([], [entity("topic", "cage/gp12/joints"), entity("variable", "cage/gp12/isHome"), entity("topic", "@rant/log/info")], [], 0);
+    const tree = buildMesh([], [entity("topic", "cage/gp12/joints"), entity("variable", "cage/gp12/isHome"), entity("topic", "@rant/log")], [], 0);
     assert.deepEqual(labels(tree), [["Nodes", []], ["Entities", [["cage/", [["gp12/", ["isHome", "joints"]]]]]]]);
+  });
+
+  it("files each node's conditions under it, most serious first, and flags the worst", () => {
+    const cond = (key: string, level: Condition["level"], text: string, origin: Condition["origin"] = "rant"): Condition => ({
+      key, level, origin, clearable: false, sinceUs: 0, text,
+    });
+    const status = new Map([[1, [
+      cond("forced/0a0b0c0d", "warn", "arm/speed is forced by hmi, forcing is for debugging only"),
+      cond("schema_mismatch/01020304", "error", "pose to lidar: x is f32 there, f64 here"),
+      cond("estop", "error", "pressed", "app"),
+    ]]]);
+    const [nodes] = buildMesh([peer(1, "arm"), peer(2, "lidar")], [], [], 0, status);
+    assert.ok(nodes?.kind === "section");
+    const arm = nodes.children.find((n) => n.label === "arm");
+    const lidar = nodes.children.find((n) => n.label === "lidar");
+    assert.ok(arm?.kind === "node" && lidar?.kind === "node");
+    assert.equal(arm.worst, "error");
+    assert.deepEqual(conditionItems(arm).map((r) => [r.label, r.description]), [
+      ["pose to lidar: x is f32 there, f64 here", "schema_mismatch"],
+      ["pressed", "estop"],
+      ["arm/speed is forced by hmi, forcing is for debugging only", "forced"],
+    ]);
+    assert.equal(lidar.worst, undefined);
+    assert.equal(conditionItems(lidar).length, 0);
   });
 });
 

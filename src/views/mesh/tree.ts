@@ -1,4 +1,4 @@
-import type { Entity, Peer } from "rant-middleware";
+import type { Condition, Entity, Level, Peer } from "rant-middleware";
 
 import { typeName } from "./table.ts";
 
@@ -17,6 +17,10 @@ export interface NodeItem {
   peer?: Peer;
   root?: string;
   ref: string;
+  /** the node's active status conditions, most serious first */
+  conditions: Condition[];
+  /** the most serious level among them, none when it has none */
+  worst?: Level;
 }
 
 export type MeshItem =
@@ -24,7 +28,18 @@ export type MeshItem =
   | { kind: "folder"; id: string; label: string; children: MeshItem[] }
   | { kind: "group"; id: string; label: string; description: string; tooltip: string; root: string; ref: string; children: MeshItem[] }
   | NodeItem
-  | { kind: "entity"; id: string; label: string; description: string; tooltip: string; entity: Entity };
+  | { kind: "entity"; id: string; label: string; description: string; tooltip: string; entity: Entity }
+  | ConditionItem;
+
+/** One active condition of a node, a leaf under its row. */
+export interface ConditionItem {
+  kind: "condition";
+  id: string;
+  label: string;
+  description: string;
+  tooltip: string;
+  level: Level;
+}
 
 /** What the Mesh view needs of a workspace: what it started, and under which groups. */
 export type Started = Pick<WorkspaceData, "root" | "name" | "listing">;
@@ -97,12 +112,18 @@ export function nest(entities: Entity[], scope: string): MeshItem[] {
   return items(root, "");
 }
 
-function nodeItem(id: string, name: string, peer: Peer | undefined, root?: string): NodeItem {
+const rank: Record<Level, number> = { debug: 1, info: 2, warn: 3, error: 4 };
+
+function nodeItem(id: string, name: string, peer: Peer | undefined, status: ReadonlyMap<number, Condition[]>, root?: string): NodeItem {
   // a round trip shows only once reliable traffic measured one
   const rtt = peer?.rttSamples ? rttText(peer.rttUs) : "";
   const state = peer ? "up" : "joining";
+  const conditions = [...((peer && status.get(peer.id)) ?? [])].sort(
+    (a, b) => rank[b.level] - rank[a.level] || a.text.localeCompare(b.text),
+  );
   const lines = [name, peer ? peer.address : "started, not on the mesh yet"];
   if (rtt) lines.push(`round trip ${rtt}, jitter ${rttText(peer?.rttJitterUs ?? 0) || "0 ms"}`);
+  if (conditions.length) lines.push(`${conditions.length} active condition${conditions.length === 1 ? "" : "s"}`);
   if (root) lines.push(`started by ${root}`);
   return {
     kind: "node",
@@ -114,7 +135,29 @@ function nodeItem(id: string, name: string, peer: Peer | undefined, root?: strin
     peer,
     root,
     ref: name,
+    conditions,
+    worst: conditions[0]?.level,
   };
+}
+
+/** A node's conditions as rows: the text, and the kind or key it is filed under. */
+export function conditionItems(node: NodeItem): ConditionItem[] {
+  return node.conditions.map((c) => {
+    // Rant's own keys are the kind, then an id that only keeps them apart
+    const kind = c.origin === "rant" ? (c.key.split("/")[0] ?? c.key) : c.key;
+    const since = c.sinceUs ? new Date(c.sinceUs / 1000).toISOString().replace("T", " ").slice(0, 19) : "";
+    const lines = [c.text, `${c.level} ${c.origin === "rant" ? "from Rant" : "from the node"}, key ${c.key}`];
+    if (since) lines.push(`since ${since} UTC`);
+    if (c.clearable) lines.push("another node may clear it");
+    return {
+      kind: "condition",
+      id: `${node.id}/condition/${c.origin}/${c.key}`,
+      label: c.text,
+      description: kind,
+      tooltip: lines.join("\n"),
+      level: c.level,
+    };
+  });
 }
 
 /**
@@ -123,7 +166,13 @@ function nodeItem(id: string, name: string, peer: Peer | undefined, root?: strin
  * since the CLI starts it under its instance name. Entities follow as one tree of names.
  */
 /** The mesh on one domain: what each workspace started there, by group, then every other peer. */
-export function buildMesh(peers: Peer[], entities: Entity[], started: Started[], domain: number): MeshItem[] {
+export function buildMesh(
+  peers: Peer[],
+  entities: Entity[],
+  started: Started[],
+  domain: number,
+  status: ReadonlyMap<number, Condition[]> = new Map(),
+): MeshItem[] {
   const visible = peers.filter((p) => p.active && !tooling(p.name));
   const live = new Map(visible.map((p) => [p.name, p]));
   const byName = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label);
@@ -143,7 +192,7 @@ export function buildMesh(peers: Peer[], entities: Entity[], started: Started[],
       const own: MeshItem[] = [];
       for (const n of members) {
         if (n.group && n.group !== g) inner.set(n.group, [...(inner.get(n.group) ?? []), n]);
-        else own.push(nodeItem(`${id}/${n.name}`, n.name, live.get(n.name), w.root));
+        else own.push(nodeItem(`${id}/${n.name}`, n.name, live.get(n.name), status, w.root));
       }
       const included = [...inner].map(
         ([name, nodes]): MeshItem => ({
@@ -154,7 +203,7 @@ export function buildMesh(peers: Peer[], entities: Entity[], started: Started[],
           tooltip: `${name}, inside ${g}`,
           root: w.root,
           ref: name,
-          children: nodes.map((n) => nodeItem(`${id}/${name}/${n.name}`, n.name, live.get(n.name), w.root)).sort(byName),
+          children: nodes.map((n) => nodeItem(`${id}/${name}/${n.name}`, n.name, live.get(n.name), status, w.root)).sort(byName),
         }),
       );
       groups.push({
@@ -170,12 +219,12 @@ export function buildMesh(peers: Peer[], entities: Entity[], started: Started[],
       members.forEach((n) => claimed.add(n.name));
     }
     for (const n of here.filter((x) => x.groups.length === 0)) {
-      loose.push(nodeItem(`node/${w.root}/${n.name}`, n.name, live.get(n.name), w.root));
+      loose.push(nodeItem(`node/${w.root}/${n.name}`, n.name, live.get(n.name), status, w.root));
       claimed.add(n.name);
     }
   }
   // several peers may share a name, each its own row
-  for (const p of visible) if (!claimed.has(p.name)) loose.push(nodeItem(`peer/${p.id}`, p.name, p));
+  for (const p of visible) if (!claimed.has(p.name)) loose.push(nodeItem(`peer/${p.id}`, p.name, p, status));
 
   const out: MeshItem[] = [{ kind: "section", id: "nodes", label: "Nodes", children: [...groups.sort(byName), ...loose.sort(byName)] }];
   const shown = entities.filter((e) => !builtIn(e.name));
