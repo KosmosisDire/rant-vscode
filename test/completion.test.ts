@@ -81,8 +81,8 @@ describe("keys inside blocks", () => {
     assert.deepEqual(labels("group", group("  ", 'node "planner"')), ["name", "args", "env", "domain", "prefix", "node_prefix"]);
   });
 
-  it("offers only run in a package node", () => {
-    assert.deepEqual(labels("package", group("  ", 'node "tool"')), ["run"]);
+  it("offers run and expect_mesh in a package node", () => {
+    assert.deepEqual(labels("package", group("  ", 'node "tool"')), ["run", "expect_mesh"]);
   });
 
   it("leaves out keys the block sets already, written before or after the cursor", () => {

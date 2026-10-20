@@ -47,7 +47,14 @@ const packageNode: BlockEntry = {
   name: "node",
   label: "node name",
   doc: "A program rant cannot find itself. The label is the node name and `run` is required.",
-  attributes: [{ name: "run", doc: "The command, a string or a list. `${path.package}` is the package folder." }],
+  attributes: [
+    { name: "run", doc: "The command, a string or a list. `${path.package}` is the package folder." },
+    {
+      name: "expect_mesh",
+      doc: "false for a program that never joins the mesh, so `rant run` waits only for it to start. Default true.",
+      values: ["true", "false"],
+    },
+  ],
 };
 
 /** The names a release file name reads, known once a release is picked. */
