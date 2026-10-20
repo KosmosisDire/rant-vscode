@@ -1,0 +1,3 @@
+name        = "vscode"
+description = "Rant in VS Code: config file support, a view of your workspaces, and the live mesh"
+vsix        = "rant-vscode-${version}.vsix"
