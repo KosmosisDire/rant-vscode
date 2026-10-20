@@ -29,7 +29,20 @@ describe("keys per file kind", () => {
   });
 
   it("offers the package keys and the node block", () => {
-    assert.deepEqual(labels("package", ""), ["name", "build", "depend", "ignore", "python", "domain", "prefix", "node_prefix", "node"]);
+    assert.deepEqual(labels("package", ""), [
+      "name",
+      "description",
+      "archive",
+      "vsix",
+      "build",
+      "depend",
+      "ignore",
+      "python",
+      "domain",
+      "prefix",
+      "node_prefix",
+      "node",
+    ]);
   });
 
   it("offers the group keys and blocks", () => {
@@ -186,6 +199,11 @@ describe("values", () => {
 
   it("offers path only in a package", () => {
     assert.deepEqual(labels("package", "build = "), ["path.file", "path.package", "path.workspace"]);
+  });
+
+  it("offers only version and platform in a release file name", () => {
+    assert.deepEqual(labels("package", "archive = "), ["version", "platform"]);
+    assert.deepEqual(labels("package", "vsix = "), ["version", "platform"]);
   });
 });
 

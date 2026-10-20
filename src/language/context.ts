@@ -244,7 +244,7 @@ export function suggest(kind: FileKind, text: string, offset: number, known: Kno
   const out: Suggestion[] = (attr?.values ?? []).map((v) => ({ kind: "value", label: v, doc: attr?.doc ?? "", insert: v }));
   // a param is only read in a group, and a param block is not an expression
   if (attr?.values === undefined) {
-    out.push(...PATH_NAMES.map<Suggestion>((p) => ({ kind: "variable", label: p.name, doc: p.doc, insert: p.name })));
+    out.push(...(attr?.names ?? PATH_NAMES).map<Suggestion>((p) => ({ kind: "variable", label: p.name, doc: p.doc, insert: p.name })));
     if (kind === "group") {
       for (const m of text.matchAll(/^\s*param\s+"([^"\n]+)"/gm)) {
         out.push({ kind: "variable", label: `param.${m[1]}`, doc: `The value of param ${m[1]}.`, insert: `param.${m[1]}` });
