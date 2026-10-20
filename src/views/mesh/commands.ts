@@ -1,10 +1,10 @@
 import * as vscode from "vscode";
 
-import type { LogLine, RantNode } from "rant-middleware";
 import { findBridges } from "rant-middleware/tunnel";
 import type { FoundBridge } from "rant-middleware/tunnel";
 
 import type { MeshConnection } from "../../mesh/connection.ts";
+import { MeshLogFeed, MeshLogs, NodeLog } from "./logs.ts";
 import { EntityPanel } from "./panel.ts";
 import type { MeshView } from "./provider.ts";
 import type { MeshItem } from "./tree.ts";
@@ -65,58 +65,22 @@ async function chooseBridge(mesh: MeshConnection): Promise<void> {
   else await vscode.workspace.getConfiguration("rant").update("bridgeUrl", next || undefined, vscode.ConfigurationTarget.Global);
 }
 
-/** The other nodes' log lines in an output channel, from the first time they are asked for. */
-class MeshLogs implements vscode.Disposable {
-  private readonly channel = vscode.window.createOutputChannel("Rant Mesh Logs");
-  private hold: vscode.Disposable | undefined;
-  private watch: vscode.Disposable | undefined;
-  private node: RantNode | undefined;
-  private readonly mesh: MeshConnection;
-
-  constructor(mesh: MeshConnection) {
-    this.mesh = mesh;
-  }
-
-  show(): void {
-    this.channel.show(true);
-    if (this.hold) return;
-    this.hold = this.mesh.want();
-    this.watch = this.mesh.onDidChange(() => this.subscribe());
-    this.subscribe();
-  }
-
-  private subscribe(): void {
-    const node = this.mesh.state === "open" ? this.mesh.node : undefined;
-    if (!node || node === this.node) return;
-    this.node = node;
-    const line = (l: LogLine) => {
-      const at = new Date(l.wallUs / 1000).toISOString().slice(11, 23);
-      // Rant's own lines are marked, so they read apart from the node's
-      this.channel.appendLine(`${at} ${l.level.padEnd(5)} ${l.node}${l.origin === "rant" ? " (Rant)" : ""}: ${l.text}`);
-    };
-    try {
-      node.onLog(line);
-    } catch (e) {
-      this.channel.appendLine(`cannot read the mesh logs: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
-
-  dispose(): void {
-    this.hold?.dispose();
-    this.watch?.dispose();
-    this.channel.dispose();
-  }
-}
-
 export function registerMeshCommands(mesh: MeshConnection, view: MeshView, extension: vscode.Uri): vscode.Disposable[] {
-  const logs = new MeshLogs(mesh);
+  const feed = new MeshLogFeed(mesh);
+  const logs = new MeshLogs(feed);
+  const nodeLog = new NodeLog(feed);
   return [
     logs,
+    nodeLog,
+    feed,
     vscode.commands.registerCommand("rant.mesh.refresh", () => view.refresh()),
     vscode.commands.registerCommand("rant.mesh.open", (row?: MeshItem) => {
       if (row?.kind === "entity") EntityPanel.show(mesh, row.entity, extension);
     }),
     vscode.commands.registerCommand("rant.mesh.logs", () => logs.show()),
+    vscode.commands.registerCommand("rant.mesh.nodeLog", (row?: MeshItem) => {
+      if (row?.kind === "node") nodeLog.show(row);
+    }),
     vscode.commands.registerCommand("rant.mesh.domain", async () => {
       const text = await vscode.window.showInputBox({
         prompt: "The Rant domain to explore, empty to follow the workspace",

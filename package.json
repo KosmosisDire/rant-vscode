@@ -223,6 +223,12 @@
         "icon": "$(output)"
       },
       {
+        "command": "rant.mesh.nodeLog",
+        "title": "Show Node Log",
+        "category": "Rant",
+        "icon": "$(output)"
+      },
+      {
         "command": "rant.mesh.domain",
         "title": "Change Mesh Domain",
         "category": "Rant",
@@ -249,6 +255,10 @@
       "commandPalette": [
         {
           "command": "rant.build",
+          "when": "false"
+        },
+        {
+          "command": "rant.mesh.nodeLog",
           "when": "false"
         },
         {
@@ -420,6 +430,16 @@
           "command": "rant.stop",
           "when": "view == rant.mesh && viewItem =~ /^(node|group)\\.running/",
           "group": "1_run@2"
+        },
+        {
+          "command": "rant.mesh.nodeLog",
+          "when": "view == rant.mesh && viewItem =~ /^(node\\.running|peer)$/",
+          "group": "inline@3"
+        },
+        {
+          "command": "rant.mesh.nodeLog",
+          "when": "view == rant.mesh && viewItem =~ /^(node\\.running|peer)$/",
+          "group": "2_open@1"
         }
       ]
     },
