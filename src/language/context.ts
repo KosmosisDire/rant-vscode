@@ -17,25 +17,51 @@ const NOTHING: Known = { nodes: [], groups: [], packages: [] };
 
 const byName = (a: Entry, b: Entry) => a.name.localeCompare(b.name);
 
-/** The names a file can write, bare for what sits in its own package as the CLI looks there first. */
+const isPath = (type: string) => /^([A-Za-z]:)?\//.test(type);
+
+/** A node type's bare name: after its package, or for a file outside every package its stem, a `main.py` its folder's. */
+function bareName(type: string): string {
+  if (!isPath(type)) return type.slice(type.indexOf("/") + 1);
+  const parts = type.split("/");
+  const stem = (parts.pop() ?? "").replace(/\.[^.]*$/, "");
+  return stem === "main" || stem === "__main__" ? (parts.pop() ?? stem) : stem;
+}
+
+/** The names a file can write, each as short as the CLI still finds it from there. */
 export function knownFrom(w: WorkspaceData, file: string): Known {
   const key = pathKey(file);
   const here = w.packages
     .filter((p) => key.startsWith(pathKey(p.folder) + "/"))
     .sort((a, b) => b.folder.length - a.folder.length)[0]?.name;
-  const written = (name: string) => (here && name.startsWith(`${here}/`) ? name.slice(here.length + 1) : name);
+
+  // a bare node name works when no other node type has it, wherever the file is
   const types = new Map<string, string | undefined>();
-  for (const n of w.listing.nodes) {
-    // a running file outside every package is known by its path, which a group does not write
-    if (/^([A-Za-z]:)?\//.test(n.type)) continue;
-    if (!types.has(n.type) || n.kind) types.set(n.type, n.kind);
-  }
+  for (const n of w.listing.nodes) if (!types.has(n.type) || n.kind) types.set(n.type, n.kind);
+  const uses = new Map<string, number>();
+  for (const t of types.keys()) uses.set(bareName(t), (uses.get(bareName(t)) ?? 0) + 1);
+  const nodeName = (t: string) => (uses.get(bareName(t)) === 1 ? bareName(t) : t);
+
+  // a bare group name finds the file's own package first, then the top level, then the one package that has it
+  const stem = (name: string) => name.slice(name.indexOf("/") + 1);
+  const found = (bare: string) => {
+    const own = here && w.groups.find((g) => g.name === `${here}/${bare}`);
+    if (own) return own.name;
+    if (w.groups.some((g) => g.name === bare)) return bare;
+    const inPackages = w.groups.filter((g) => g.name.includes("/") && stem(g.name) === bare);
+    return inPackages.length === 1 ? inPackages[0]?.name : undefined;
+  };
+  const groupName = (name: string) => (found(stem(name)) === name ? stem(name) : name);
+
   return {
-    nodes: [...types].map(([t, kind]) => ({ name: written(t), doc: kind ? `${t}, ${kind}` : t })).sort(byName),
+    // a file outside every package written by its path cannot be named from a group
+    nodes: [...types]
+      .filter(([t]) => !isPath(t) || uses.get(bareName(t)) === 1)
+      .map(([t, kind]) => ({ name: nodeName(t), doc: kind ? `${t}, ${kind}` : t }))
+      .sort(byName),
     groups: w.groups
       .filter((g) => pathKey(g.file) !== key)
       .map((g) => ({
-        name: written(g.name),
+        name: groupName(g.name),
         doc: g.description || g.name,
         params: g.params.split(" ").flatMap((p) => p.split("=")[0] || []),
       }))

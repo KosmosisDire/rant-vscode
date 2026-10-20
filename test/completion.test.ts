@@ -127,7 +127,31 @@ describe("names from the workspace", () => {
     assert.deepEqual([param?.insert, param?.more], ['param "${1:param name}" {\n\t$0\n}', false]);
   });
 
-  it("names what sits in the file's own package bare and skips the file's own group", () => {
+  it("names each node and group as short as the CLI still finds it from the file", () => {
+    const pkg = (name: string) => ({ name, kinds: ["cmake"], folder: `C:/ws/${name}`, files: [] });
+    const group = (name: string, file: string) => ({ name, file, description: "", params: "", includes: [], nodes: [] });
+    const idle = (name: string) => ({ name, kind: "native" });
+    const w: WorkspaceData = {
+      root: "C:/ws",
+      name: "ws",
+      packages: parsePackages(JSON.stringify([pkg("arm"), pkg("cam"), pkg("bridge")])),
+      groups: [
+        group("arm/Drive", "C:/ws/arm/Drive.run"),
+        group("cam/Drive", "C:/ws/cam/Drive.run"),
+        group("bridge/Bridge", "C:/ws/bridge/Bridge.run"),
+        group("Cell", "C:/ws/Cell.run"),
+      ],
+      uses: [],
+      listing: parseNodes(JSON.stringify({ domain: 0, groups: [], nodes: [], not_running: ["arm/driver", "cam/driver", "bridge/bridge"].map(idle) })),
+    };
+    const top = knownFrom(w, "C:/ws/Cell.run");
+    assert.deepEqual(top.nodes.map((n) => n.name), ["arm/driver", "bridge", "cam/driver"]);
+    assert.deepEqual(top.groups.map((g) => g.name), ["arm/Drive", "Bridge", "cam/Drive"]);
+    const inArm = knownFrom(w, "C:/ws/arm/Other.run");
+    assert.deepEqual(inArm.groups.map((g) => g.name), ["Bridge", "cam/Drive", "Cell", "Drive"]);
+  });
+
+  it("names a file outside every package by its own name and skips the file's own group", () => {
     const w: WorkspaceData = {
       root: "C:/work/wsa",
       name: "wsa",
@@ -140,7 +164,7 @@ describe("names from the workspace", () => {
       listing: parseNodes(fixture("cli/ls-nodes-loose.json")),
     };
     const k = knownFrom(w, "C:/work/wsa/WsaGroup.run");
-    assert.deepEqual(k.nodes.map((n) => n.name), ["listener"]);
+    assert.deepEqual(k.nodes.map((n) => n.name), ["listener", "talker"]);
     assert.deepEqual(k.groups.map((g) => [g.name, g.params]), [["Other", ["speed", "target"]]]);
     assert.deepEqual(k.packages, []);
   });
