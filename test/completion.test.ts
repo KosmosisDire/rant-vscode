@@ -185,7 +185,7 @@ describe("names from the workspace", () => {
 
 describe("values", () => {
   it("offers the param types after type =", () => {
-    assert.deepEqual(labels("group", 'param "a" {\n  type = '), ["string", "int", "float", "bool"]);
+    assert.deepEqual(labels("group", 'param "a" {\n  type = '), ["string", "int", "float", "bool", "path"]);
   });
 
   it("offers true and false after expose =", () => {

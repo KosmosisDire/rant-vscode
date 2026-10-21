@@ -92,7 +92,7 @@ const param: BlockEntry = {
   label: "param name",
   doc: "A value the group takes, set with `rant run Group key=value`. Read it as `param.<name>`.",
   attributes: [
-    { name: "type", doc: "The type of the value. Default string.", values: ["string", "int", "float", "bool"] },
+    { name: "type", doc: "The type of the value. Default string. A path counts from where it is given.", values: ["string", "int", "float", "bool", "path"] },
     { name: "options", doc: "List of the values allowed." },
     { name: "default", doc: "The value when none is given. Without one the param is required." },
     { name: "description", doc: "What the param does, shown by `rant run Group --help`." },
