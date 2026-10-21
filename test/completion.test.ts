@@ -46,7 +46,7 @@ describe("keys per file kind", () => {
   });
 
   it("offers the group keys and blocks", () => {
-    assert.deepEqual(labels("group", ""), ["description", "domain", "prefix", "node_prefix", "param", "include", "node"]);
+    assert.deepEqual(labels("group", ""), ["description", "domain", "prefix", "node_prefix", "restart", "param", "include", "node"]);
   });
 
   it("filters nothing itself, the editor does by the word typed", () => {
@@ -74,11 +74,11 @@ describe("keys inside blocks", () => {
   });
 
   it("offers the keys of an include", () => {
-    assert.deepEqual(labels("group", group("  ", 'include "ArmGroup"')), ["expose", "domain", "prefix", "node_prefix"]);
+    assert.deepEqual(labels("group", group("  ", 'include "ArmGroup"')), ["expose", "domain", "prefix", "node_prefix", "restart"]);
   });
 
   it("offers the keys of a node in a group", () => {
-    assert.deepEqual(labels("group", group("  ", 'node "planner"')), ["name", "args", "env", "domain", "prefix", "node_prefix"]);
+    assert.deepEqual(labels("group", group("  ", 'node "planner"')), ["name", "args", "env", "domain", "prefix", "node_prefix", "restart"]);
   });
 
   it("offers run and expect_mesh in a package node", () => {
@@ -88,7 +88,7 @@ describe("keys inside blocks", () => {
   it("leaves out keys the block sets already, written before or after the cursor", () => {
     const text = 'node "n" {\n  name = "a"\n  ';
     const after = '\n  args = "-v"\n  env = { A = "1" }\n}\n';
-    assert.deepEqual(suggest("group", text + after, text.length).map((s) => s.label), ["domain", "prefix", "node_prefix"]);
+    assert.deepEqual(suggest("group", text + after, text.length).map((s) => s.label), ["domain", "prefix", "node_prefix", "restart"]);
     assert.deepEqual(labels("workspace", 'domain = 3\nlogs = "l"\n'), ["ignore", "prefix", "node_prefix"]);
   });
 
@@ -130,7 +130,7 @@ describe("names from the workspace", () => {
   });
 
   it("offers an included group's params as keys of its include", () => {
-    assert.deepEqual(labels("group", 'include "ArmGroup" {\n  speed = 2\n  ', known), ["expose", "domain", "prefix", "node_prefix", "side"]);
+    assert.deepEqual(labels("group", 'include "ArmGroup" {\n  speed = 2\n  ', known), ["expose", "domain", "prefix", "node_prefix", "restart", "side"]);
   });
 
   it("leaves a block's label empty and opens the list there when names are known", () => {
@@ -192,6 +192,10 @@ describe("values", () => {
     assert.deepEqual(labels("group", 'include "G" {\n  expose = '), ["true", "false"]);
   });
 
+  it("offers the three restarts after restart =", () => {
+    assert.deepEqual(labels("group", "restart = "), ['"never"', '"on-failure"', '"always"']);
+  });
+
   it("offers path and the params of the group after another key", () => {
     const text = 'param "speed" {\n}\nnode "n" {\n  args = param.';
     assert.deepEqual(labels("group", text), ["path.file", "path.package", "path.workspace", "param.speed"]);
@@ -227,10 +231,10 @@ describe("vocabulary against the crate", () => {
   const expect: Array<[string, string[], string[]]> = [
     ["workspace", ["workspace.rs", "placement.rs"], FILE_SCOPES.workspace.attributes.map((a) => a.name)],
     ["package", ["package.rs", "placement.rs"], FILE_SCOPES.package.attributes.map((a) => a.name)],
-    ["group", ["group.rs", "placement.rs"], FILE_SCOPES.group.attributes.map((a) => a.name)],
+    ["group", ["group.rs", "placement.rs", "plan.rs"], FILE_SCOPES.group.attributes.map((a) => a.name)],
     ["param", ["param.rs"], FILE_SCOPES.group.blocks.find((b) => b.name === "param")?.attributes.map((a) => a.name) ?? []],
-    ["group node", ["group.rs", "placement.rs"], FILE_SCOPES.group.blocks.find((b) => b.name === "node")?.attributes.map((a) => a.name) ?? []],
-    ["include", ["group.rs", "placement.rs"], FILE_SCOPES.group.blocks.find((b) => b.name === "include")?.attributes.map((a) => a.name) ?? []],
+    ["group node", ["group.rs", "placement.rs", "plan.rs"], FILE_SCOPES.group.blocks.find((b) => b.name === "node")?.attributes.map((a) => a.name) ?? []],
+    ["include", ["group.rs", "placement.rs", "plan.rs"], FILE_SCOPES.group.blocks.find((b) => b.name === "include")?.attributes.map((a) => a.name) ?? []],
     ["package node", ["package.rs"], FILE_SCOPES.package.blocks.flatMap((b) => b.attributes.map((a) => a.name))],
   ];
 

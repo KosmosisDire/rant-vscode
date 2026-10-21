@@ -20,7 +20,7 @@ export interface Scope {
   blocks: BlockEntry[];
 }
 
-// Keys and blocks come from cli-rant/config/src: workspace.rs, package.rs, group.rs, param.rs, placement.rs.
+// Keys and blocks come from cli-rant/config/src: workspace.rs, package.rs, group.rs, param.rs, placement.rs, plan.rs.
 // The docs come from the crate's comments and cli-rant/templates/skill/SKILL.md.
 
 const domain: Entry = { name: "domain", doc: "The Rant domain nodes start on, a number from 0 to 65535. The innermost one wins." };
@@ -33,6 +33,11 @@ const nodePrefix: Entry = {
   doc: "Goes in front of the node name. Prefixes join from the outside in. A full node name holds 32 bytes at most.",
 };
 const placement: Entry[] = [domain, prefix, nodePrefix];
+const restart: Entry = {
+  name: "restart",
+  doc: 'Whether a node that exits starts again: "never" (the default), "on-failure" (unless it exited with 0) or "always". The service process of rant starts it again. The innermost wins.',
+  values: ['"never"', '"on-failure"', '"always"'],
+};
 
 const workspace: Scope = {
   attributes: [
@@ -101,6 +106,7 @@ const include: BlockEntry = {
   attributes: [
     { name: "expose", doc: "true passes every unset param of the included group up, or a list of the names to pass.", values: ["true", "false"] },
     ...placement,
+    restart,
   ],
 };
 
@@ -113,11 +119,12 @@ const groupNode: BlockEntry = {
     { name: "args", doc: "Arguments added after the node's command, a string or a list." },
     { name: "env", doc: 'Environment variables, an object such as { LEVEL = "debug" }.' },
     ...placement,
+    restart,
   ],
 };
 
 const group: Scope = {
-  attributes: [{ name: "description", doc: "What the group does, shown by `rant ls groups`." }, ...placement],
+  attributes: [{ name: "description", doc: "What the group does, shown by `rant ls groups`." }, ...placement, restart],
   blocks: [param, include, groupNode],
 };
 
