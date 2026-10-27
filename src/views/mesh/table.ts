@@ -1,14 +1,13 @@
 import type { CompiledSchema, FieldKind } from "rant-middleware";
 
-/** One field of a schema as a page reads it: its dotted path, with `[]` past each array. */
+/** One field of a schema as a page reads it: its dotted path, with `[]` past each array. An
+ *  array's element is a row of its own, its path the array's with `[]`, named "". */
 export interface SchemaRow {
   path: string;
   name: string;
   /** string is a capped string, vstring one of any length */
   kind: string;
   named?: string;
-  elem?: string;
-  elemNamed?: string;
   count?: number;
   cap?: number;
   variants?: { name: string; value: number }[];
@@ -30,18 +29,14 @@ export function blockOf(s: CompiledSchema): SchemaBlock {
   const table = s.fields;
   const paths: string[] = [];
   const fields = table.map((f, i): SchemaRow => {
-    // the nearest row one level up holds this one, and an array of structs adds [] to the path
+    // the nearest row one level up holds this one: an array's element adds [] to its path
     let parent = i - 1;
     while (parent >= 0 && table[parent]!.depth >= f.depth) parent--;
-    const up = parent >= 0 ? paths[parent]! + (table[parent]!.kind === "struct" ? "" : "[]") : "";
-    paths.push(parent >= 0 ? `${up}.${f.name}` : f.name);
+    const element = parent >= 0 && (table[parent]!.kind === "arr" || table[parent]!.kind === "varr");
+    paths.push(parent < 0 ? f.name : element ? `${paths[parent]!}[]` : `${paths[parent]!}.${f.name}`);
     const row: SchemaRow = { path: paths[i]!, name: f.name, kind: kindText(f.kind) };
     if (f.typeName) row.named = f.typeName;
-    if (f.kind === "arr" || f.kind === "varr") {
-      row.elem = f.elem ? kindText(f.elem) : "";
-      if (f.elemName) row.elemNamed = f.elemName;
-      if (f.kind === "arr") row.count = f.count;
-    }
+    if (f.kind === "arr") row.count = f.count;
     if (f.strCap) row.cap = f.strCap;
     if (f.kind === "enum") row.variants = s.enumVariants(i);
     return row;
@@ -107,17 +102,17 @@ const RANGE: Record<string, [bigint, bigint]> = {
 export const keyOf = (p: Path): string => JSON.stringify(p);
 
 const parentOf = (schemaPath: string): string => (schemaPath.includes(".") ? schemaPath.slice(0, schemaPath.lastIndexOf(".")) : "");
+// a struct's members, each named, never an array's element
 const kids = (block: SchemaBlock, schemaPath: string): SchemaRow[] =>
-  block.fields.filter((f) => f.path !== schemaPath && parentOf(f.path) === schemaPath);
-const bare = (block: SchemaBlock): SchemaRow | undefined => (block.fields.length === 1 && !block.fields[0]!.name ? block.fields[0] : undefined);
+  block.fields.filter((f) => f.name !== "" && f.path !== schemaPath && parentOf(f.path) === schemaPath);
+/** An array row's element, the row at its path with [] after. */
+const elemOf = (block: SchemaBlock, f: SchemaRow): SchemaRow | undefined => block.fields.find((x) => x.path === `${f.path}[]`);
+// a bare type's first row is unnamed, where a struct's first is a named member
+const bare = (block: SchemaBlock): SchemaRow | undefined => (block.fields[0] && !block.fields[0].name ? block.fields[0] : undefined);
 const media = (named?: string): "VideoFrame" | "Image" | undefined => (named === "VideoFrame" || named === "Image" ? named : undefined);
 
-function elemType(f: SchemaRow): string {
-  return f.elemNamed ?? (f.elem === "string" && f.cap ? `string<${f.cap}>` : f.elem ?? "?");
-}
-
-/** A field's type as the schema text spells it. */
-export function typeOf(f: SchemaRow): string {
+/** A field's type as the schema text spells it, a list of lists as f32[3][]. */
+function typeOf(block: SchemaBlock, f: SchemaRow): string {
   switch (f.kind) {
     case "struct":
     case "enum":
@@ -127,8 +122,10 @@ export function typeOf(f: SchemaRow): string {
     case "vstring":
       return "string";
     case "arr":
-    case "varr":
-      return `${elemType(f)}[${f.kind === "arr" ? (f.count ?? "") : ""}]`;
+    case "varr": {
+      const e = elemOf(block, f);
+      return `${f.named ?? (e ? typeOf(block, e) : "?")}[${f.kind === "arr" ? (f.count ?? "") : ""}]`;
+    }
     default:
       return f.kind;
   }
@@ -179,30 +176,36 @@ export function tableRows(block: SchemaBlock | null | undefined, value: unknown,
     const name = path.length ? String(path[path.length - 1]) : "value";
     if (f.kind === "struct") {
       const open = isOpen(key, true);
-      out.push({ key, path, depth, name, type: typeOf(f), text: "", branch: true, open, editor: "", edit: "", media: media(f.named) });
+      out.push({ key, path, depth, name, type: typeOf(block, f), text: "", branch: true, open, editor: "", edit: "", media: media(f.named) });
       if (open) members(schemaPath, v, path, depth + 1);
       return;
     }
     if (f.kind === "arr" || f.kind === "varr") {
       const items = listOf(v);
       const n = items.length;
-      if (f.elem === "u8") {
-        out.push({ key, path, depth, name, type: typeOf(f), text: `${n} bytes`, branch: false, open: false, editor: "", edit: "" });
+      const e = elemOf(block, f);
+      if (e?.kind === "u8") {
+        out.push({ key, path, depth, name, type: typeOf(block, f), text: `${n} bytes`, branch: false, open: false, editor: "", edit: "" });
         return;
       }
       const open = isOpen(key, n <= WHOLE);
-      out.push({ key, path, depth, name, type: typeOf(f), text: `${n} items`, branch: true, open, editor: "", edit: "" });
-      if (!open) return;
+      out.push({ key, path, depth, name, type: typeOf(block, f), text: `${n} items`, branch: true, open, editor: "", edit: "" });
+      if (!open || !e) return;
       const removable = view.editing && f.kind === "varr";
       for (let i = 0; i < Math.min(n, LISTED); i++) {
         const at = [...path, i];
-        if (f.elem === "struct") {
+        if (e.kind === "struct") {
           const k = keyOf(at);
           const elOpen = isOpen(k, n <= 1);
-          out.push({ key: k, path: at, depth: depth + 1, name: `[${i}]`, type: elemType(f), text: "", branch: true, open: elOpen, editor: "", edit: "", remove: removable, media: media(f.elemNamed) });
-          if (elOpen) members(`${schemaPath}[]`, items[i], at, depth + 2);
+          out.push({ key: k, path: at, depth: depth + 1, name: `[${i}]`, type: typeOf(block, e), text: "", branch: true, open: elOpen, editor: "", edit: "", remove: removable, media: media(e.named) });
+          if (elOpen) members(e.path, items[i], at, depth + 2);
+        } else if (e.kind === "arr" || e.kind === "varr") {
+          // a list of lists: each item a list of its own
+          const first = out.length;
+          field(e, items[i], at, depth + 1, e.path);
+          out[first] = { ...out[first]!, name: `[${i}]`, remove: removable };
         } else {
-          out.push({ ...leaf(f.elem ?? "", `[${i}]`, at, depth + 1, items[i], elemType(f)), remove: removable });
+          out.push({ ...leaf(e.kind, `[${i}]`, at, depth + 1, items[i], typeOf(block, e), e), remove: removable });
         }
       }
       if (n > LISTED) out.push({ key: `${key}+more`, path, depth: depth + 1, name: "", type: "", text: `${n - LISTED} more`, branch: false, open: false, editor: "", edit: "", more: n - LISTED });
@@ -214,7 +217,7 @@ export function tableRows(block: SchemaBlock | null | undefined, value: unknown,
       out.push({ key, path, depth, name, type: "map", text: `${n} ${n === 1 ? "entry" : "entries"}`, branch: false, open: false, editor: "", edit: "" });
       return;
     }
-    out.push(leaf(f.kind, name, path, depth, v, typeOf(f), f));
+    out.push(leaf(f.kind, name, path, depth, v, typeOf(block, f), f));
   };
 
   const root = bare(block);
@@ -236,11 +239,10 @@ function mediaFields(block: SchemaBlock): { segs: string[]; type: Media }[] {
   const root = media(block.name);
   if (root) return [{ segs: [], type: root }];
   const out: { segs: string[]; type: Media }[] = [];
+  // a picture that is an array's element sits at a path ending [], as its element row's
   for (const f of block.fields) {
     const own = media(f.named);
-    const each = (f.kind === "arr" || f.kind === "varr") && media(f.elemNamed);
     if (own) out.push({ segs: f.path ? f.path.split(".") : [], type: own });
-    else if (each) out.push({ segs: [...(f.path ? f.path.split(".").slice(0, -1) : []), `${f.path.split(".").pop() ?? ""}[]`], type: each });
   }
   return out;
 }
@@ -257,12 +259,11 @@ export function mediaIn(block: SchemaBlock | null | undefined, value: unknown): 
   for (const m of mediaFields(block)) {
     let paths: Path[] = [[]];
     for (const seg of m.segs) {
-      const each = seg.endsWith("[]");
-      const name = each ? seg.slice(0, -2) : seg;
-      paths = paths.flatMap((p) => {
-        const at = name ? [...p, name] : p;
-        return each ? Array.from({ length: listOf(getAt(value, at)).length }, (_, i) => [...at, i]) : [at];
-      });
+      // each [] after the name steps into every item of a list, a list of lists one more
+      const name = seg.replace(/(\[\])+$/, "");
+      paths = paths.map((p) => (name ? [...p, name] : p));
+      for (let n = (seg.length - name.length) / 2; n > 0; n--)
+        paths = paths.flatMap((at) => Array.from({ length: listOf(getAt(value, at)).length }, (_, i) => [...at, i]));
     }
     for (const path of paths) out.push({ key: keyOf(path), path, type: m.type });
   }
@@ -298,19 +299,13 @@ export function fieldAt(block: SchemaBlock, path: Path): { kind: string; row?: S
   const root = bare(block);
   let schemaPath = "";
   let row: SchemaRow | undefined = root;
-  let inArray = false;
   for (const seg of path) {
-    if (typeof seg === "number") {
-      schemaPath += "[]";
-      inArray = true;
-      continue;
-    }
-    schemaPath = schemaPath ? `${schemaPath}.${seg}` : seg;
+    // an index steps to the array's element row, a name to a member's
+    schemaPath = typeof seg === "number" ? `${schemaPath}[]` : schemaPath ? `${schemaPath}.${seg}` : seg;
     row = block.fields.find((f) => f.path === schemaPath);
-    inArray = false;
   }
   if (!row) return { kind: "" };
-  return { kind: inArray ? (row.elem ?? "") : row.kind, row };
+  return { kind: row.kind, row };
 }
 
 function zero(block: SchemaBlock, f: SchemaRow, schemaPath: string): unknown {
@@ -320,9 +315,9 @@ function zero(block: SchemaBlock, f: SchemaRow, schemaPath: string): unknown {
     case "arr":
     case "varr": {
       const n = f.kind === "arr" ? (f.count ?? 0) : 0;
-      const el = f.elem ?? "";
-      if (TYPED[el]) return new TYPED[el]!(n);
-      return Array.from({ length: n }, () => elementZero(block, f, schemaPath));
+      const e = elemOf(block, f);
+      if (e && TYPED[e.kind]) return new TYPED[e.kind]!(n);
+      return Array.from({ length: n }, () => (e ? zero(block, e, e.path) : 0));
     }
     case "string":
     case "vstring":
@@ -345,16 +340,6 @@ function zeroMembers(block: SchemaBlock, schemaPath: string): Record<string, unk
   const out: Record<string, unknown> = {};
   for (const c of kids(block, schemaPath)) out[c.name] = zero(block, c, c.path);
   return out;
-}
-
-/** A new element of the array field f, at its zero. */
-function elementZero(block: SchemaBlock, f: SchemaRow, schemaPath: string): unknown {
-  const el = f.elem ?? "";
-  if (el === "struct") return zeroMembers(block, `${schemaPath}[]`);
-  if (el === "u64" || el === "i64") return 0n;
-  if (el === "bool") return false;
-  if (el === "string") return "";
-  return 0;
 }
 
 /** A value of the schema with every field at its zero, to edit before a send. */
@@ -381,8 +366,8 @@ export function addElement(block: SchemaBlock, root: unknown, path: Path): unkno
   const { row } = fieldAt(block, path);
   if (!row) return root;
   const list = getAt(root, path);
-  const schemaPath = row.path;
-  const added = elementZero(block, row, schemaPath);
+  const e = elemOf(block, row);
+  const added = e ? zero(block, e, e.path) : 0;
   if (ArrayBuffer.isView(list)) {
     const typed = list as unknown as { length: number; constructor: new (n: number) => { set(a: ArrayLike<unknown>): void } };
     const grown = new typed.constructor(typed.length + 1);

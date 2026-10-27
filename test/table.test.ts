@@ -16,10 +16,13 @@ const Reading: SchemaBlock = {
     { path: "pose", name: "pose", kind: "struct", named: "Double2" },
     { path: "pose.x", name: "x", kind: "f64" },
     { path: "pose.y", name: "y", kind: "f64" },
-    { path: "points", name: "points", kind: "varr", elem: "struct", elemNamed: "Float3" },
+    { path: "points", name: "points", kind: "varr" },
+    { path: "points[]", name: "", kind: "struct", named: "Float3" },
     { path: "points[].z", name: "z", kind: "f32" },
-    { path: "samples", name: "samples", kind: "varr", elem: "f32" },
-    { path: "raw", name: "raw", kind: "varr", elem: "u8" },
+    { path: "samples", name: "samples", kind: "varr" },
+    { path: "samples[]", name: "", kind: "f32" },
+    { path: "raw", name: "raw", kind: "varr" },
+    { path: "raw[]", name: "", kind: "u8" },
     { path: "on", name: "on", kind: "bool" },
   ],
 };
@@ -71,7 +74,7 @@ describe("tableRows", () => {
   });
 
   it("lifts the children of a bare array to the top", () => {
-    const bare: SchemaBlock = { name: "", hash: "", dsl: "f64[]", fields: [{ path: "", name: "", kind: "varr", elem: "f64" }] };
+    const bare: SchemaBlock = { name: "", hash: "", dsl: "f64[]", fields: [{ path: "", name: "", kind: "varr" }, { path: "[]", name: "", kind: "f64" }] };
     assert.deepEqual(cells(tableRows(bare, new Float64Array([1, 2]), view())), [["[0]", "f64", "1.000"], ["[1]", "f64", "2.000"]]);
   });
 
@@ -110,8 +113,9 @@ describe("templateOf", () => {
     assert.deepEqual(t.pose, { x: 0, y: 0 });
     assert.deepEqual(t.points, []);
     assert.ok(t.samples instanceof Float32Array && t.samples.length === 0);
-    const fixed: SchemaBlock = { name: "M", hash: "", dsl: "", fields: [{ path: "m", name: "m", kind: "arr", elem: "f32", count: 9 }] };
-    assert.equal((templateOf(fixed) as { m: Float32Array }).m.length, 9);
+    const fixed: SchemaBlock = { name: "M", hash: "", dsl: "", fields: [{ path: "m", name: "m", kind: "arr", count: 9 }, { path: "m[]", name: "", kind: "f32" }] };
+    const m = (templateOf(fixed) as { m: Float32Array }).m;
+    assert.ok(m instanceof Float32Array && m.length === 9);
   });
 });
 
@@ -149,8 +153,10 @@ describe("mediaIn", () => {
       name: "Rig", hash: "", dsl: "",
       fields: [
         { path: "front", name: "front", kind: "struct", named: "VideoFrame" },
-        { path: "shots", name: "shots", kind: "varr", elem: "struct", elemNamed: "Image" },
-        { path: "cams", name: "cams", kind: "varr", elem: "struct", elemNamed: "Cam" },
+        { path: "shots", name: "shots", kind: "varr" },
+        { path: "shots[]", name: "", kind: "struct", named: "Image" },
+        { path: "cams", name: "cams", kind: "varr" },
+        { path: "cams[]", name: "", kind: "struct", named: "Cam" },
         { path: "cams[].frame", name: "frame", kind: "struct", named: "VideoFrame" },
         { path: "speed", name: "speed", kind: "f64" },
       ],
