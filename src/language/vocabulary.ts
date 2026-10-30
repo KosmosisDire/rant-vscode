@@ -5,8 +5,6 @@ export interface Entry {
   doc: string;
   /** Values the attribute takes, when it is a closed set. */
   values?: string[];
-  /** The names its value may read, when not the usual path names. */
-  names?: Entry[];
 }
 
 export interface BlockEntry extends Entry {
@@ -62,22 +60,10 @@ const packageNode: BlockEntry = {
   ],
 };
 
-/** The names a release file name reads, known once a release is picked. */
-const RELEASE_NAMES: Entry[] = [
-  { name: "version", doc: "The release tag without its v." },
-  { name: "platform", doc: "The machine the file is for: win-x64, win-arm64, linux-x64, linux-arm64, osx-x64 or osx-arm64." },
-];
-
 const pkg: Scope = {
   attributes: [
-    { name: "name", doc: "The package name. Default: the name in its build file, else the folder name." },
+    { name: "name", doc: "The package name, which `rant install` needs. Default: the name in its build file, else the folder name." },
     { name: "description", doc: "What the package is for, shown by `rant info package`." },
-    {
-      name: "archive",
-      doc: 'The archive each release carries, unpacked into ~/.rant/packages: bin/, package.rant and the run files. Such as "rant-x-${version}-${platform}.zip".',
-      names: RELEASE_NAMES,
-    },
-    { name: "vsix", doc: 'The editor extension each release carries, such as "rant-x-${version}.vsix".', names: RELEASE_NAMES },
     { name: "build", doc: "Commands run in order, replacing the default build. A string or a list of strings." },
     { name: "depend", doc: "Names of packages built first." },
     { name: "ignore", doc: "List of globs, relative to the package, that node discovery skips." },
