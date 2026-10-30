@@ -26,11 +26,11 @@ describe("parsePackages", () => {
 });
 
 describe("parseUses", () => {
-  it("reads rant lib, a missing version as null", () => {
-    const uses = parseUses(fixture("cli/lib.json"));
+  it("reads rant ls libraries, a missing version as null", () => {
+    const uses = parseUses(fixture("cli/ls-libraries.json"));
     assert.deepEqual(uses.map((u) => [u.how, u.version]), [["pyproject", null], ["venv", "0.0.22"], ["CPM", "0.0.21"], ["venv", null]]);
     assert.equal(uses[2]?.file, "C:/work/wsa/cam/CMakeLists.txt");
-    assert.throws(() => parseUses("{}"), /rant lib/);
+    assert.throws(() => parseUses("{}"), /rant ls libraries/);
   });
 });
 

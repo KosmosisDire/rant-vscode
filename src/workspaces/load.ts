@@ -40,12 +40,12 @@ export async function loadWorkspace(cli: Cli, root: string): Promise<WorkspaceDa
     const [packages, groups, uses, listing] = await Promise.all([
       json(cli, root, ["ls", "packages"]),
       json(cli, root, ["ls", "groups"]),
-      json(cli, root, ["lib"]),
+      json(cli, root, ["ls", "libraries"]),
       loadNodes(cli, root),
     ]);
     data.packages = parsePackages(packages);
     data.groups = parseGroups(groups);
-    data.uses = parseUses(uses);
+    data.uses = parseUses(uses).filter((u) => u.library === "rant");
     data.listing = listing;
   } catch (e) {
     if (e instanceof CliMissing) throw e;

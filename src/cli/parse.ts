@@ -7,13 +7,15 @@ export interface PackageInfo {
   folder: string;
   /** Its build files, then its package.rant if it has one. */
   files: string[];
+  /** The Rant version it uses, from the libraries it lists. */
   rant: string | null;
   /** Put in rant's home by `rant install`, seen by every workspace. */
   installed: boolean;
 }
 
-/** One line of `rant lib --json`: a build file or venv that takes Rant, or could. */
+/** One line of `rant ls libraries --json`: a build file or venv that takes a library, or could. */
 export interface LibUse {
+  library: string;
   folder: string;
   kind: string;
   /** CPM, FetchContent, find_package, pyproject, venv, PackageReference, ProjectReference, Cargo, Cargo workspace or Cargo path. */
@@ -108,17 +110,18 @@ export function parsePackages(raw: string): PackageInfo[] {
       kinds: list(o.kinds, what).map((k) => text(k, what)),
       folder: text(o.folder, what),
       files: list(o.files, what).map((f) => text(f, what)),
-      rant: typeof o.rant === "string" ? o.rant : null,
+      rant: typeof Object(o.libraries).rant === "string" ? Object(o.libraries).rant : null,
       installed: o.installed === true,
     };
   });
 }
 
 export function parseUses(raw: string): LibUse[] {
-  const what = "lib";
+  const what = "ls libraries";
   return list(parseJson(raw, what), what).map((e) => {
     const o = object(e, what);
     return {
+      library: text(o.library, what),
       folder: text(o.folder, what),
       kind: text(o.kind, what),
       how: text(o.how, what),

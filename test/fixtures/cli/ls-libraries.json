@@ -1,5 +1,6 @@
 [
   {
+    "library": "rant",
     "folder": "C:/work/wsa",
     "kind": "python",
     "how": "pyproject",
@@ -7,6 +8,7 @@
     "file": "C:/work/wsa/pyproject.toml"
   },
   {
+    "library": "rant",
     "folder": "C:/work/wsa",
     "kind": "python",
     "how": "venv",
@@ -14,6 +16,7 @@
     "file": "C:/work/wsa/.venv"
   },
   {
+    "library": "rant",
     "folder": "C:/work/wsa/cam",
     "kind": "cmake",
     "how": "CPM",
@@ -21,6 +24,7 @@
     "file": "C:/work/wsa/cam/CMakeLists.txt"
   },
   {
+    "library": "rant",
     "folder": "C:/work/wsa/tools",
     "kind": "python",
     "how": "venv",

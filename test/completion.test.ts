@@ -171,7 +171,7 @@ describe("names from the workspace", () => {
         ...parseGroups(fixture("cli/ls-groups.json")),
         { name: "Other", file: "C:/work/Other.run", description: "", params: "speed=1 target=?", includes: [], nodes: [] },
       ],
-      uses: parseUses(fixture("cli/lib.json")),
+      uses: parseUses(fixture("cli/ls-libraries.json")),
       listing: parseNodes(fixture("cli/ls-nodes-loose.json")),
     };
     const k = knownFrom(w, "C:/work/wsa/WsaGroup.run");

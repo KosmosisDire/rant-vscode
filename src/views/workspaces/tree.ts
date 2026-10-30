@@ -23,7 +23,7 @@ export interface TreeNode {
   nodeType?: string;
   /** A node under the group that starts it, which starts only with its group. */
   member?: boolean;
-  /** The folder `rant lib` takes for a package or build system, relative to the workspace. */
+  /** The folder `rant add` takes for a package or build system, relative to the workspace. */
   lib?: string;
   /** Takes Rant, so it is updated rather than added to. Unset where neither fits. */
   hasRant?: boolean;
@@ -59,7 +59,7 @@ function rantText(version: string | null, hasRant: boolean): string {
   return version ? `Rant ${version}` : hasRant ? "" : "no Rant";
 }
 
-/** A build file or venv `rant lib` lists, labelled from the folder it sits in. */
+/** A build file or venv `rant ls libraries` lists for Rant, labelled from the folder it sits in. */
 function buildRow(w: WorkspaceData, u: LibUse, from: string): TreeNode {
   const venv = u.how === "venv";
   // a venv without Rant takes none. Any other use names Rant, a version or not.

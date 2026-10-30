@@ -26,9 +26,9 @@ export function actionArgs(action: Action, row: Pick<TreeNode, "kind" | "ref" | 
     case "restart":
       return kind === "workspace" ? ["restart"] : kind === "node" || kind === "group" ? ["restart", ref] : undefined;
     case "updateRant":
-      return kind === "workspace" ? ["lib", "update"] : lib ? ["lib", "update", lib] : undefined;
+      return kind === "workspace" ? ["update", "rant"] : lib ? ["add", "rant", lib] : undefined;
     case "addRant":
-      return lib ? ["lib", "install", lib] : undefined;
+      return lib ? ["add", "rant", lib] : undefined;
   }
 }
 

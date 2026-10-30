@@ -14,7 +14,7 @@ function workspace(nodes: string): WorkspaceData {
     name: "wsa",
     packages: parsePackages(fixture("cli/ls-packages.json")),
     groups: parseGroups(fixture("cli/ls-groups.json")),
-    uses: parseUses(fixture("cli/lib.json")),
+    uses: parseUses(fixture("cli/ls-libraries.json")),
     listing: parseNodes(fixture(nodes)),
   };
 }
@@ -100,7 +100,7 @@ describe("buildTree", () => {
     assert.equal(pkg?.children[0]?.open, undefined);
   });
 
-  it("offers Rant by the folder rant lib takes, update where it is, add where not", () => {
+  it("offers Rant by the folder rant add takes, update where it is, add where not", () => {
     const w = workspace("cli/ls-nodes-idle.json");
     const [ws] = buildTree([w]);
     assert.deepEqual([sectionOf(ws, "Packages")[0]?.lib, sectionOf(ws, "Packages")[0]?.hasRant], [".", true]);
@@ -173,10 +173,10 @@ describe("actionArgs", () => {
   });
 
   it("updates Rant in a workspace or a build system and adds it to one", () => {
-    assert.deepEqual(actionArgs("updateRant", { kind: "workspace", ref: "/ws" }), ["lib", "update"]);
-    assert.deepEqual(actionArgs("updateRant", { kind: "build", ref: "cam/CMakeLists.txt", lib: "cam" }), ["lib", "update", "cam"]);
-    assert.deepEqual(actionArgs("updateRant", { kind: "package", ref: "cam", lib: "src/cam" }), ["lib", "update", "src/cam"]);
-    assert.deepEqual(actionArgs("addRant", { kind: "build", ref: "tools/env", lib: "tools" }), ["lib", "install", "tools"]);
+    assert.deepEqual(actionArgs("updateRant", { kind: "workspace", ref: "/ws" }), ["update", "rant"]);
+    assert.deepEqual(actionArgs("updateRant", { kind: "build", ref: "cam/CMakeLists.txt", lib: "cam" }), ["add", "rant", "cam"]);
+    assert.deepEqual(actionArgs("updateRant", { kind: "package", ref: "cam", lib: "src/cam" }), ["add", "rant", "src/cam"]);
+    assert.deepEqual(actionArgs("addRant", { kind: "build", ref: "tools/env", lib: "tools" }), ["add", "rant", "tools"]);
     assert.equal(actionArgs("addRant", { kind: "package", ref: "drv" }), undefined);
   });
 
