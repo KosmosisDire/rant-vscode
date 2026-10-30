@@ -11,7 +11,7 @@ after(() => node.close());
 
 describe("blockOf", () => {
   it("spells paths, kinds and names the way the page reads them", () => {
-    const s = node.schema("Rig { cam: Image, points: Float3[], tag: string<8>, note: string, mode: enum<u8> { Off, On } }");
+    const s = node.schema("Power = enum<u8> { Off, On }\nRig { cam: Image, points: Float3[], tag: string<8>, note: string, mode: Power }");
     const rows = new Map(blockOf(s).fields.map((f) => [f.path, f]));
     assert.equal(rows.get("cam")?.named, "Image");
     assert.equal(rows.get("cam.format")?.kind, "enum");
@@ -30,7 +30,7 @@ describe("blockOf", () => {
     assert.equal(typeName(null), "bytes");
     assert.equal(blockOf(node.schema("Float3[]")).fields.find((f) => f.name === "x")?.path, "[].x");
     // a list of lists: each element a row of its own
-    const grid = new Map(blockOf(node.schema("Grid { rows: f32[3][] }")).fields.map((f) => [f.path, f.kind]));
+    const grid = new Map(blockOf(node.schema("Sheet { rows: f32[3][] }")).fields.map((f) => [f.path, f.kind]));
     assert.deepEqual([grid.get("rows"), grid.get("rows[]"), grid.get("rows[][]")], ["varr", "arr", "f32"]);
   });
 });
