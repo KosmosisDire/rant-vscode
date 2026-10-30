@@ -19,7 +19,7 @@ export interface Scope {
 }
 
 // Keys and blocks come from cli-rant/config/src: workspace.rs, package.rs, group.rs, param.rs, placement.rs, plan.rs.
-// The docs come from the crate's comments and cli-rant/templates/skill/SKILL.md.
+// The docs come from the crate's comments and cli-rant/skill/SKILL.md.
 
 const domain: Entry = { name: "domain", doc: "The Rant domain nodes start on, a number from 0 to 65535. The innermost one wins." };
 const prefix: Entry = {
