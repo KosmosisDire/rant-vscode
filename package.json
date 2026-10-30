@@ -2,7 +2,7 @@
   "name": "vscode-rant",
   "displayName": "Rant",
   "description": "Rant workspaces: syntax, completion and errors for workspace.rant, package.rant and group files, and a view to build, start and stop nodes.",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "publisher": "kosmosisdire",
   "license": "UNLICENSED",
   "private": true,
