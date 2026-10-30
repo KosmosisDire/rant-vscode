@@ -13,6 +13,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -29,6 +30,7 @@ jobs:
         run: sudo ip link set lo multicast on
 
       - name: Check, test and pack
+        timeout-minutes: 10
         run: |
           npm ci
           npm test
