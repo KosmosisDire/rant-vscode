@@ -139,7 +139,7 @@ export class NodeLog implements vscode.Disposable {
   private followOutput(name: string, root: string): void {
     const cli = requireCli();
     if (!cli) return;
-    const child = spawn(cli.exe, ["log", name, "--follow", "--json", "--lines", String(OUTPUT_LINES)], { cwd: root, windowsHide: true });
+    const child = spawn(cli.exe, ["log", name, "--follow", "--json", "-n", String(OUTPUT_LINES)], { cwd: root, windowsHide: true });
     this.child = child;
     let stderr = "";
     readline.createInterface({ input: child.stdout }).on("line", (record) => {
