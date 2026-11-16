@@ -125,7 +125,7 @@
       },
       {
         "view": "rant.mesh",
-        "contents": "The bridge refused the passphrase.\n[Enter Passphrase](command:rant.bridge.passphrase)\n[Choose Bridge](command:rant.bridge.choose)",
+        "contents": "The bridge speaks another protocol than this extension: update the one that is older.\n[Choose Bridge](command:rant.bridge.choose)",
         "when": "rant.mesh == refused"
       },
       {
@@ -244,11 +244,6 @@
         "title": "Choose Bridge",
         "category": "Rant",
         "icon": "$(plug)"
-      },
-      {
-        "command": "rant.bridge.passphrase",
-        "title": "Enter Bridge Passphrase",
-        "category": "Rant"
       }
     ],
     "menus": {
@@ -464,7 +459,7 @@
         "rant.bridgeUrl": {
           "type": "string",
           "default": "",
-          "markdownDescription": "A bridge the Mesh view reaches the mesh through, such as `ws://192.168.1.20:6731` or `wss://bridge.example.com`. Empty joins this machine's network directly. The passphrase of a bridge is asked for once and kept in the editor's secret storage."
+          "markdownDescription": "A bridge the Mesh view reaches the mesh through, such as `ws://192.168.1.20:6731` or `wss://bridge.example.com`. Empty joins this machine's network directly."
         }
       }
     }

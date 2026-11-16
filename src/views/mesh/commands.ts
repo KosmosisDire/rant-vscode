@@ -9,14 +9,6 @@ import { EntityPanel } from "./panel.ts";
 import type { MeshView } from "./provider.ts";
 import type { MeshItem } from "./tree.ts";
 
-/** Asks for the passphrase of the bridge the setting names and keeps it in secret storage. */
-async function askPassphrase(mesh: MeshConnection, url: string): Promise<boolean> {
-  const passphrase = await vscode.window.showInputBox({ prompt: `Passphrase of the bridge at ${url}`, password: true, ignoreFocusOut: true });
-  if (passphrase === undefined) return false;
-  await mesh.setPassphrase(url, passphrase);
-  return true;
-}
-
 /** The bridges on this network: any bridge answers rant-bridges.local, else this machine's. */
 async function nearbyBridges(): Promise<FoundBridge[]> {
   for (const url of ["ws://rant-bridges.local:6731", "ws://127.0.0.1:6731"]) {
@@ -59,8 +51,6 @@ async function chooseBridge(mesh: MeshConnection): Promise<void> {
   });
   if (url === undefined) return;
   const next = url.trim();
-  // the passphrase is stored first, so the reconnect the setting causes already has it
-  if (next && !(await askPassphrase(mesh, next))) return;
   if (next === mesh.remote) await mesh.reconnect();
   else await vscode.workspace.getConfiguration("rant").update("bridgeUrl", next || undefined, vscode.ConfigurationTarget.Global);
 }
@@ -93,12 +83,5 @@ export function registerMeshCommands(mesh: MeshConnection, view: MeshView, exten
     }),
     vscode.commands.registerCommand("rant.mesh.reconnect", () => mesh.reconnect()),
     vscode.commands.registerCommand("rant.bridge.choose", () => chooseBridge(mesh)),
-    vscode.commands.registerCommand("rant.bridge.passphrase", async () => {
-      if (!mesh.remote) {
-        void vscode.window.showInformationMessage("The editor joins this machine's network directly. Choose a bridge to reach a mesh through one.");
-        return;
-      }
-      if (await askPassphrase(mesh, mesh.remote)) await mesh.reconnect();
-    }),
   ];
 }

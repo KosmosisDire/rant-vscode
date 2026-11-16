@@ -17,7 +17,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const registry = new Registry();
   const view = new WorkspacesView(registry);
   const diagnostics = new RantDiagnostics();
-  const connection = new MeshConnection(vscode.window.createOutputChannel("Rant Mesh", { log: true }), context.secrets, () => view.domain());
+  const connection = new MeshConnection(vscode.window.createOutputChannel("Rant Mesh", { log: true }), () => view.domain());
   const mesh = new MeshView(connection, view, context.extensionUri);
   const refreshAll = async () => {
     // a changed set of workspaces reloads the view through onDidChangeRoots

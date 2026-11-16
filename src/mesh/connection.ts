@@ -8,7 +8,7 @@ import { UdpNet } from "rant-middleware/udp";
 
 import { meshDomain } from "./settings.ts";
 
-/** down: not joined, retrying. refused: the bridge said no, a wrong passphrase. */
+/** down: not joined, retrying. refused: the bridge said no, such as on another protocol. */
 export type MeshState = "down" | "connecting" | "open" | "reconnecting" | "refused";
 
 const RETRY_MS = 5000;
@@ -32,12 +32,10 @@ export class MeshConnection implements vscode.Disposable {
   private generation = 0;
   private timer: NodeJS.Timeout | undefined;
   private readonly output: vscode.LogOutputChannel;
-  private readonly secrets: vscode.SecretStorage;
   private readonly workspaceDomain: () => number | undefined;
 
-  constructor(output: vscode.LogOutputChannel, secrets: vscode.SecretStorage, workspaceDomain: () => number | undefined) {
+  constructor(output: vscode.LogOutputChannel, workspaceDomain: () => number | undefined) {
     this.output = output;
-    this.secrets = secrets;
     this.workspaceDomain = workspaceDomain;
   }
 
@@ -53,11 +51,6 @@ export class MeshConnection implements vscode.Disposable {
   /** The bridge setting, empty for this machine's own network. */
   get remote(): string {
     return vscode.workspace.getConfiguration("rant").get<string>("bridgeUrl", "").trim();
-  }
-
-  /** Keeps the passphrase of a bridge in the editor's secret storage. */
-  setPassphrase(url: string, passphrase: string): Thenable<void> {
-    return this.secrets.store(`rant.bridge.${url}`, passphrase);
   }
 
   /** Keeps the node open until the returned disposable is disposed. */
@@ -96,7 +89,6 @@ export class MeshConnection implements vscode.Disposable {
       this.set("connecting", `joining ${where}`);
       if (remote) {
         const tunnel = await TunnelNet.connect(remote, {
-          passphrase: (await this.secrets.get(`rant.bridge.${remote}`)) ?? "",
           name: "vscode",
           onEvent: (e) => this.logTunnel(e),
         });
@@ -126,9 +118,9 @@ export class MeshConnection implements vscode.Disposable {
       net?.shutdown();
       const why = e instanceof Error ? e.message : String(e);
       if (generation !== this.generation) return;
-      const refused = /passphrase|protocol|too old/.test(why);
+      const refused = /protocol|too old/.test(why);
       this.set(refused ? "refused" : "down", why);
-      // asking again with the same passphrase cannot help, a new one reconnects
+      // asking again cannot help until one side is updated
       if (!refused) this.retry();
     } finally {
       this.connecting = false;
