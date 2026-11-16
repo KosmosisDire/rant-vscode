@@ -104,6 +104,10 @@ const groupNode: BlockEntry = {
     { name: "name", doc: "The name on the mesh. The node's own name by default." },
     { name: "args", doc: "Arguments added after the node's command, a string or a list." },
     { name: "env", doc: 'Environment variables, an object such as { LEVEL = "debug" }.' },
+    {
+      name: "remap",
+      doc: 'Renames names the node creates, an object such as { "Wrench" = "Wrench/Raw" }. The key is the name as the code writes it, and the value takes the prefix, or skips it with a leading /.',
+    },
     ...placement,
     restart,
   ],

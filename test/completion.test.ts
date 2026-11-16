@@ -76,7 +76,7 @@ describe("keys inside blocks", () => {
   });
 
   it("offers the keys of a node in a group", () => {
-    assert.deepEqual(labels("group", group("  ", 'node "planner"')), ["name", "args", "env", "domain", "prefix", "node_prefix", "restart"]);
+    assert.deepEqual(labels("group", group("  ", 'node "planner"')), ["name", "args", "env", "remap", "domain", "prefix", "node_prefix", "restart"]);
   });
 
   it("offers run and expect_mesh in a package node", () => {
@@ -86,7 +86,7 @@ describe("keys inside blocks", () => {
   it("leaves out keys the block sets already, written before or after the cursor", () => {
     const text = 'node "n" {\n  name = "a"\n  ';
     const after = '\n  args = "-v"\n  env = { A = "1" }\n}\n';
-    assert.deepEqual(suggest("group", text + after, text.length).map((s) => s.label), ["domain", "prefix", "node_prefix", "restart"]);
+    assert.deepEqual(suggest("group", text + after, text.length).map((s) => s.label), ["remap", "domain", "prefix", "node_prefix", "restart"]);
     assert.deepEqual(labels("workspace", 'domain = 3\nlogs = "l"\n'), ["ignore", "prefix", "node_prefix"]);
   });
 
