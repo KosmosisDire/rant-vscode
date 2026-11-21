@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 
 import { RantCompletion, TRIGGERS } from "./language/completion.ts";
 import { RantDiagnostics } from "./language/diagnostics.ts";
+import { RantHover } from "./language/hover.ts";
 import { LANGUAGE_IDS } from "./language/vocabulary.ts";
 import { MeshConnection } from "./mesh/connection.ts";
 import { MeshStatus } from "./mesh/status.ts";
@@ -42,6 +43,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ...registerMeshCommands(connection, mesh, context.extensionUri),
     connection,
     vscode.languages.registerCompletionItemProvider(LANGUAGE_IDS.map((language) => ({ language })), new RantCompletion((f) => view.dataFor(f)), ...TRIGGERS),
+    vscode.languages.registerHoverProvider(LANGUAGE_IDS.map((language) => ({ language })), new RantHover((f) => view.dataFor(f))),
     registry.onDidChangeRoots((roots) => {
       void view.reload();
       roots.forEach((r) => diagnostics.schedule(r));

@@ -21,29 +21,30 @@ export interface Scope {
 // Keys and blocks come from cli-rant/config/src: workspace.rs, package.rs, group.rs, param.rs, placement.rs, plan.rs.
 // The docs come from the crate's comments and cli-rant/skill/SKILL.md.
 
-const domain: Entry = { name: "domain", doc: "The Rant domain nodes start on, a number from 0 to 65535. The innermost one wins." };
-const prefix: Entry = {
-  name: "prefix",
-  doc: "Goes in front of every entity name a node makes. Prefixes join from the outside in. It cannot be empty, contain @, or start or end with /.",
-};
-const nodePrefix: Entry = {
-  name: "node_prefix",
-  doc: "Goes in front of the node name. Prefixes join from the outside in. A full node name holds 32 bytes at most.",
-};
+const domain: Entry = { name: "domain", doc: "The Rant domain the nodes join, 0 to 65535. The innermost wins." };
+const prefix: Entry = { name: "prefix", doc: 'Goes in front of every entity name, such as "Cell1" for Cell1/Arm.' };
+const nodePrefix: Entry = { name: "node_prefix", doc: 'Goes in front of every node name, such as "left" for left/arm.' };
 const placement: Entry[] = [domain, prefix, nodePrefix];
 const restart: Entry = {
   name: "restart",
-  doc: 'Whether a node that exits starts again: "never" (the default), "on-failure" (unless it exited with 0) or "always". The service process of rant starts it again. The innermost wins.',
+  doc: 'Whether a node that exits starts again: "never" (the default), "on-failure" or "always". The innermost wins.',
   values: ['"never"', '"on-failure"', '"always"'],
+};
+
+const service: BlockEntry = {
+  name: "service",
+  label: "group name",
+  doc: "A group `rant run` starts, and every boot once the workspace is enabled. Other keys set its params.",
+  attributes: [...placement, restart],
 };
 
 const workspace: Scope = {
   attributes: [
-    { name: "logs", doc: 'Folder for the output of started nodes, one `<node>.log` each. Default "logs".' },
-    { name: "ignore", doc: 'List of globs for folders discovery skips, such as ["third_party/**"].' },
+    { name: "logs", doc: 'Folder for the output of started nodes. Default "logs".' },
+    { name: "ignore", doc: 'Globs of folders rant skips, such as ["third_party/**"].' },
     ...placement,
   ],
-  blocks: [],
+  blocks: [service],
 };
 
 const packageNode: BlockEntry = {
@@ -88,9 +89,9 @@ const param: BlockEntry = {
 const include: BlockEntry = {
   name: "include",
   label: "group name",
-  doc: "Another group started with this one. Other attributes set its params by name.",
+  doc: "Another group started with this one. Other keys set its params.",
   attributes: [
-    { name: "expose", doc: "true passes every unset param of the included group up, or a list of the names to pass.", values: ["true", "false"] },
+    { name: "expose", doc: 'Makes its unset params params of this group: true for all, or a list such as ["speed"].', values: ["true", "false"] },
     ...placement,
     restart,
   ],
@@ -106,7 +107,7 @@ const groupNode: BlockEntry = {
     { name: "env", doc: 'Environment variables, an object such as { LEVEL = "debug" }.' },
     {
       name: "remap",
-      doc: 'Renames names the node creates, an object such as { "Wrench" = "Wrench/Raw" }. The key is the name as the code writes it, and the value takes the prefix, or skips it with a leading /.',
+      doc: 'Renames names the node creates, such as { "Wrench" = "Wrench/Raw" }.',
     },
     ...placement,
     restart,

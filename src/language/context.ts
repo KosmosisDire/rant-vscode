@@ -178,10 +178,38 @@ const value = (e: Entry): Suggestion => ({ kind: "value", label: e.name, doc: e.
 
 /** What a label can name in a file of the given kind and block, none where the label is new. */
 function labelValues(kind: FileKind, block: string, known: Known): Entry[] {
-  if (kind !== "group") return [];
-  if (block === "node") return known.nodes;
-  if (block === "include") return known.groups;
+  if (startsGroup(kind, block)) return known.groups;
+  if (kind === "group" && block === "node") return known.nodes;
   return [];
+}
+
+/** Whether a block names a group whose params its keys set: an include, or a workspace's service. */
+function startsGroup(kind: FileKind, block: string | null | undefined): boolean {
+  return (kind === "group" && block === "include") || (kind === "workspace" && block === "service");
+}
+
+/** The params of the group a block names, as keys it may set. */
+function paramKeys(kind: FileKind, frame: Frame | undefined, known: Known): Entry[] {
+  if (!startsGroup(kind, frame?.block)) return [];
+  const g = known.groups.find((x) => x.name === frame?.label);
+  return (g?.params ?? []).map((p) => ({ name: p, doc: `Sets param ${p} of ${g?.name}.` }));
+}
+
+/** The doc of the key or block name under offset, for a hover. */
+export function describe(kind: FileKind, text: string, offset: number, known: Known = NOTHING): string | undefined {
+  const lineStart = text.lastIndexOf("\n", offset - 1) + 1;
+  const lineEnd = text.indexOf("\n", offset);
+  const line = text.slice(lineStart, lineEnd === -1 ? text.length : lineEnd);
+  const m = /^(\s*)([A-Za-z_][\w-]*)\s*(=|"|\{)/.exec(line);
+  const at = offset - lineStart;
+  if (!m?.[2] || at < (m[1]?.length ?? 0) || at > (m[1]?.length ?? 0) + m[2].length) return undefined;
+  const frames = framesAt(text, lineStart);
+  if (!frames) return undefined;
+  const frame = frames[frames.length - 1];
+  const scope = scopeOf(kind, frame?.block ?? undefined);
+  const name = m[2];
+  if (m[3] === "=") return [...scope.attributes, ...paramKeys(kind, frame, known)].find((a) => a.name === name)?.doc;
+  return scope.blocks.find((b) => b.name === name)?.doc;
 }
 
 /** The suggestions for the cursor at `offset` of a file of the given kind. */
@@ -216,13 +244,7 @@ export function suggest(kind: FileKind, text: string, offset: number, known: Kno
 
   if (/^\s*[A-Za-z_-]*$/.test(prefix)) {
     const set = keysIn(text, frame?.start ?? 0);
-    const attrs = [...scope.attributes];
-    // an include binds the params of the group it names
-    if (kind === "group" && frame?.block === "include") {
-      const g = known.groups.find((x) => x.name === frame.label);
-      for (const p of g?.params ?? []) attrs.push({ name: p, doc: `Sets param ${p} of ${g?.name}.` });
-    }
-    const keys = attrs
+    const keys = [...scope.attributes, ...paramKeys(kind, frame, known)]
       .filter((a) => !set.has(a.name))
       .map<Suggestion>((a) => ({ kind: "attribute", label: a.name, doc: a.doc, insert: `${a.name} = `, more: true }));
     const blocks = scope.blocks.map<Suggestion>((b) => {

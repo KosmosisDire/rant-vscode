@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
 import { parseGroups, parseNodes, parsePackages, parseUses } from "../src/cli/parse.ts";
-import { blockAt, knownFrom, suggest } from "../src/language/context.ts";
+import { blockAt, describe as describeAt, knownFrom, suggest } from "../src/language/context.ts";
 import type { Known } from "../src/language/context.ts";
 import { FILE_SCOPES, fileKindOf } from "../src/language/vocabulary.ts";
 import type { FileKind } from "../src/language/vocabulary.ts";
@@ -24,8 +24,8 @@ describe("fileKindOf", () => {
 });
 
 describe("keys per file kind", () => {
-  it("offers the workspace keys and no blocks", () => {
-    assert.deepEqual(labels("workspace", ""), ["logs", "ignore", "domain", "prefix", "node_prefix"]);
+  it("offers the workspace keys and the service block", () => {
+    assert.deepEqual(labels("workspace", ""), ["logs", "ignore", "domain", "prefix", "node_prefix", "service"]);
   });
 
   it("offers the package keys and the node block", () => {
@@ -87,7 +87,7 @@ describe("keys inside blocks", () => {
     const text = 'node "n" {\n  name = "a"\n  ';
     const after = '\n  args = "-v"\n  env = { A = "1" }\n}\n';
     assert.deepEqual(suggest("group", text + after, text.length).map((s) => s.label), ["remap", "domain", "prefix", "node_prefix", "restart"]);
-    assert.deepEqual(labels("workspace", 'domain = 3\nlogs = "l"\n'), ["ignore", "prefix", "node_prefix"]);
+    assert.deepEqual(labels("workspace", 'domain = 3\nlogs = "l"\n'), ["ignore", "prefix", "node_prefix", "service"]);
   });
 
   it("goes back to the top after the block closes", () => {
@@ -129,6 +129,22 @@ describe("names from the workspace", () => {
 
   it("offers an included group's params as keys of its include", () => {
     assert.deepEqual(labels("group", 'include "ArmGroup" {\n  speed = 2\n  ', known), ["expose", "domain", "prefix", "node_prefix", "restart", "side"]);
+  });
+
+  it("offers groups in a service label and their params as its keys", () => {
+    assert.deepEqual(labels("workspace", 'service "', known), ["ArmGroup"]);
+    assert.deepEqual(labels("workspace", 'service "ArmGroup" {\n  speed = 2\n  ', known), ["domain", "prefix", "node_prefix", "restart", "side"]);
+    assert.deepEqual(labels("group", 'service "', known), []);
+  });
+
+  it("describes the key or block under the cursor", () => {
+    const at = (kind: FileKind, text: string, word: string) => describeAt(kind, text, text.indexOf(word) + 1, known);
+    const ws = 'service "ArmGroup" {\n  domain = 3\n  side = "left"\n}\n';
+    assert.equal(at("workspace", ws, "service"), FILE_SCOPES.workspace.blocks[0]?.doc);
+    assert.match(at("workspace", ws, "domain") ?? "", /^The Rant domain/);
+    assert.equal(at("workspace", ws, "side"), "Sets param side of ArmGroup.");
+    assert.equal(at("workspace", ws, "left"), undefined);
+    assert.match(at("group", 'include "ArmGroup" {\n  expose = true\n}\n', "expose") ?? "", /^Makes its unset params/);
   });
 
   it("leaves a block's label empty and opens the list there when names are known", () => {
