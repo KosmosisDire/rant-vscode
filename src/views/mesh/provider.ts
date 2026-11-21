@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 
-import type { Condition, Entity, Level, Peer, RantNode } from "rant-middleware";
+import type { Condition, Entity, DiagnosticLevel, Peer, RantNode } from "rant-middleware";
 
 import type { MeshConnection } from "../../mesh/connection.ts";
 import type { WorkspacesView } from "../workspaces/provider.ts";
@@ -13,7 +13,7 @@ const POLL_MS = 1000;
 const shown = (t: MeshItem[]) => JSON.stringify(t, (k, v: unknown) => (k === "peer" || k === "entity" ? undefined : v));
 
 // a condition's icon and its colour in the theme, as the Problems view draws them
-const levelIcon: Record<Level, vscode.ThemeIcon> = {
+const levelIcon: Record<DiagnosticLevel, vscode.ThemeIcon> = {
   error: new vscode.ThemeIcon("error", new vscode.ThemeColor("problemsErrorIcon.foreground")),
   warn: new vscode.ThemeIcon("warning", new vscode.ThemeColor("problemsWarningIcon.foreground")),
   info: new vscode.ThemeIcon("info", new vscode.ThemeColor("problemsInfoIcon.foreground")),

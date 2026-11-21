@@ -1,4 +1,4 @@
-import type { Condition, Entity, Level, Peer } from "rant-middleware";
+import type { Condition, Entity, DiagnosticLevel, Peer } from "rant-middleware";
 
 import { typeName } from "./table.ts";
 
@@ -20,7 +20,7 @@ export interface NodeItem {
   /** the node's active status conditions, most serious first */
   conditions: Condition[];
   /** the most serious level among them, none when it has none */
-  worst?: Level;
+  worst?: DiagnosticLevel;
 }
 
 export type MeshItem =
@@ -38,7 +38,7 @@ export interface ConditionItem {
   label: string;
   description: string;
   tooltip: string;
-  level: Level;
+  level: DiagnosticLevel;
 }
 
 /** What the Mesh view needs of a workspace: what it started, and under which groups. */
@@ -112,7 +112,7 @@ export function nest(entities: Entity[], scope: string): MeshItem[] {
   return items(root, "");
 }
 
-const rank: Record<Level, number> = { debug: 1, info: 2, warn: 3, error: 4 };
+const rank: Record<DiagnosticLevel, number> = { debug: 1, info: 2, warn: 3, error: 4 };
 
 function nodeItem(id: string, name: string, peer: Peer | undefined, status: ReadonlyMap<number, Condition[]>, root?: string): NodeItem {
   // a round trip shows only once reliable traffic measured one
